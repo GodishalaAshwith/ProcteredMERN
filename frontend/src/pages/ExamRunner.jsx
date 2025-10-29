@@ -33,10 +33,14 @@ const ExamRunner = () => {
   const intervalRef = useRef(null);
   const saveTimerRef = useRef(null);
   const answersRef = useRef({});
+  const ignoreFsChangeRef = useRef(false); // Flag to ignore initial fullscreen change
 
   const requestFullscreen = async () => {
     const el = document.documentElement;
-    if (el.requestFullscreen) await el.requestFullscreen();
+    if (el.requestFullscreen) {
+      ignoreFsChangeRef.current = true; // Set flag before requesting
+      await el.requestFullscreen();
+    }
   };
 
   const exitFullscreen = async () => {
@@ -57,10 +61,16 @@ const ExamRunner = () => {
   const performStart = async () => {
     setState((s) => ({ ...s, loading: true, error: "" }));
     try {
-      // request fullscreen first for a clean start
-      await requestFullscreen();
+      // Start attempt first; then request fullscreen on success to avoid toggling if server rejects
       const { data } = await startAttempt(examId);
       const { attemptId, exam, serverEndTime } = data;
+
+      // Request fullscreen BEFORE setting started=true to avoid proctoring listeners firing during transition
+      await requestFullscreen();
+
+      // Small delay to ensure fullscreen stabilizes before attaching proctoring listeners
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       setState((s) => ({
         ...s,
         loading: false,
@@ -79,6 +89,10 @@ const ExamRunner = () => {
           e?.response?.data?.error ||
           "Failed to start attempt",
       }));
+      // ensure we are not left in fullscreen if the call failed for any reason
+      try {
+        await exitFullscreen();
+      } catch {}
     }
   };
 
@@ -123,6 +137,11 @@ const ExamRunner = () => {
       await registerViolation("tab-blur");
     };
     const onFsChange = async () => {
+      // Ignore the first fullscreen change event (when we enter fullscreen initially)
+      if (ignoreFsChangeRef.current) {
+        ignoreFsChangeRef.current = false;
+        return;
+      }
       if (!document.fullscreenElement) {
         await registerViolation("fullscreen-exit");
       }

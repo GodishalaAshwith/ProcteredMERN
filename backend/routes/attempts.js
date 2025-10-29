@@ -70,6 +70,22 @@ router.post("/start", auth, auth.requireRole("student"), async (req, res) => {
       studentId: req.user.id,
     }).sort({ createdAt: -1 });
 
+    // If a prior in-progress attempt exists but its time already elapsed, finalize and block restart
+    if (attempt && attempt.status === "in-progress") {
+      const elapsedEnd = new Date(
+        attempt.startedAt.getTime() + exam.durationMins * 60000
+      );
+      if (now > elapsedEnd) {
+        attempt.status = "invalid";
+        attempt.submittedAt = now;
+        await attempt.save();
+        return res.status(400).json({
+          message:
+            "Your previous attempt has already ended. Please contact faculty.",
+        });
+      }
+    }
+
     // if none or submitted/invalid, create new
     if (!attempt || attempt.status !== "in-progress") {
       attempt = await Attempt.create({
