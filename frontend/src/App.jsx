@@ -12,6 +12,10 @@ import ContactUs from "./pages/ContactUs";
 import AdminFaculty from "./pages/AdminFaculty";
 import FacultyExams from "./pages/FacultyExams";
 import ExamEditor from "./pages/ExamEditor";
+import FacultySubmissions from "./pages/FacultySubmissions";
+import StudentExams from "./pages/StudentExams";
+import ExamRunner from "./pages/ExamRunner";
+import StudentProfile from "./pages/StudentProfile";
 import Navbar from "./components/Navbar";
 
 const PrivateRoute = ({ children }) =>
@@ -77,6 +81,46 @@ function App() {
             <PrivateRoute>
               <RoleRoute allow={["faculty"]}>
                 <ExamEditor />
+              </RoleRoute>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/faculty/exams/:examId/attempts"
+          element={
+            <PrivateRoute>
+              <RoleRoute allow={["faculty"]}>
+                <FacultySubmissions />
+              </RoleRoute>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/exams"
+          element={
+            <PrivateRoute>
+              <RoleRoute allow={["student"]}>
+                <StudentExams />
+              </RoleRoute>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/student/profile"
+          element={
+            <PrivateRoute>
+              <RoleRoute allow={["student"]}>
+                <StudentProfile />
+              </RoleRoute>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/attempt/:examId"
+          element={
+            <PrivateRoute>
+              <RoleRoute allow={["student"]}>
+                <ExamRunner />
               </RoleRoute>
             </PrivateRoute>
           }

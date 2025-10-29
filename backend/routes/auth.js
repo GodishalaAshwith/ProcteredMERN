@@ -86,3 +86,44 @@ router.get("/user", authMiddleware, async (req, res) => {
 });
 
 module.exports = router;
+ 
+// Update current user's profile (authenticated)
+router.put("/profile", authMiddleware, async (req, res) => {
+  try {
+    const { name, college, year, department, section } = req.body || {};
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (typeof name === "string" && name.trim().length > 0) user.name = name.trim();
+    if (typeof college === "string") user.college = college.trim();
+    if (typeof department === "string") user.department = department.trim();
+
+    if (year !== undefined) {
+      const y = Number(year);
+      if (!Number.isNaN(y)) user.year = y;
+    }
+    if (section !== undefined) {
+      const s = Number(section);
+      if (!Number.isNaN(s)) user.section = s;
+    }
+
+    // basic validation bounds per schema
+    if (user.year != null && (user.year < 1 || user.year > 8)) {
+      return res.status(400).json({ message: "Year must be between 1 and 8" });
+    }
+    if (user.section != null && (user.section < 1 || user.section > 5)) {
+      return res
+        .status(400)
+        .json({ message: "Section must be between 1 and 5" });
+    }
+
+    await user.save();
+
+    const { password, ...safe } = user.toObject();
+    return res.json(safe);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});

@@ -5,6 +5,8 @@ const API = axios.create({ baseURL: "http://localhost:5000/api" });
 // Auth
 export const register = (formData) => API.post("/auth/register", formData);
 export const login = (formData) => API.post("/auth/login", formData);
+export const getCurrentUser = () => API.get("/auth/user", localAuthHeader());
+export const updateProfile = (payload) => API.put("/auth/profile", payload, localAuthHeader());
 
 // Helpers
 const authHeader = (token) => ({
@@ -30,3 +32,17 @@ export const getExam = (id) => API.get(`/exams/${id}`, localAuthHeader());
 export const updateExam = (id, payload) =>
   API.put(`/exams/${id}`, payload, localAuthHeader());
 export const deleteExam = (id) => API.delete(`/exams/${id}`, localAuthHeader());
+
+// Student - Available exams
+export const listAvailableExams = () => API.get("/exams/available", localAuthHeader());
+
+// Attempts
+export const startAttempt = (examId) => API.post("/attempts/start", { examId }, localAuthHeader());
+export const saveAttempt = (attemptId, answers) => API.post("/attempts/save", { attemptId, answers }, localAuthHeader());
+export const submitAttempt = (attemptId) => API.post("/attempts/submit", { attemptId }, localAuthHeader());
+export const getAttempt = (attemptId) => API.get(`/attempts/${attemptId}`, localAuthHeader());
+export const logProctorEvent = (attemptId, type, meta) => API.post(`/attempts/${attemptId}/proctor`, { type, meta }, localAuthHeader());
+
+// Faculty - Review attempts
+export const listAttemptsForExam = (examId) => API.get(`/attempts/exam/${examId}/attempts`, localAuthHeader());
+export const getProctorEvents = (attemptId) => API.get(`/attempts/${attemptId}/events`, localAuthHeader());

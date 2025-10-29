@@ -110,12 +110,18 @@ const FacultyExams = () => {
                       : "-"}
                   </td>
                   <td className="p-3">{ex.durationMins} mins</td>
-                  <td className="p-3 flex gap-2">
+                  <td className="p-3 flex gap-3">
                     <Link
                       to={`/faculty/exams/${ex._id}`}
                       className="text-indigo-600"
                     >
                       Edit
+                    </Link>
+                    <Link
+                      to={`/faculty/exams/${ex._id}/attempts`}
+                      className="text-indigo-600"
+                    >
+                      Submissions
                     </Link>
                     <button
                       onClick={() => onDelete(ex._id)}
