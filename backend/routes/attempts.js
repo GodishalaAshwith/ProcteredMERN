@@ -9,15 +9,21 @@ const router = express.Router();
 
 const matchesCriteria = (exam, student) => {
   const c = exam.assignmentCriteria || {};
-  if (c.college && student.college && c.college !== student.college) return false;
+  const norm = (v) => (typeof v === "string" ? v.trim().toLowerCase() : v);
+  if (c.college && student.college) {
+    if (norm(c.college) !== norm(student.college)) return false;
+  }
   if (Array.isArray(c.year) && c.year.length > 0) {
     if (student.year == null || !c.year.includes(student.year)) return false;
   }
   if (Array.isArray(c.department) && c.department.length > 0) {
-    if (!student.department || !c.department.includes(student.department)) return false;
+    if (!student.department) return false;
+    const set = new Set(c.department.map(norm));
+    if (!set.has(norm(student.department))) return false;
   }
   if (Array.isArray(c.section) && c.section.length > 0) {
-    if (student.section == null || !c.section.includes(student.section)) return false;
+    if (student.section == null || !c.section.includes(student.section))
+      return false;
   }
   return true;
 };
@@ -53,18 +59,30 @@ router.post("/start", auth, auth.requireRole("student"), async (req, res) => {
       return res.status(400).json({ message: "Exam is not active right now" });
     }
     if (!matchesCriteria(exam, student)) {
-      return res.status(403).json({ message: "You are not assigned to this exam" });
+      return res
+        .status(403)
+        .json({ message: "You are not assigned to this exam" });
     }
 
     // find existing attempt if any
-    let attempt = await Attempt.findOne({ examId, studentId: req.user.id }).sort({ createdAt: -1 });
+    let attempt = await Attempt.findOne({
+      examId,
+      studentId: req.user.id,
+    }).sort({ createdAt: -1 });
 
     // if none or submitted/invalid, create new
     if (!attempt || attempt.status !== "in-progress") {
-      attempt = await Attempt.create({ examId, studentId: req.user.id, startedAt: now, status: "in-progress" });
+      attempt = await Attempt.create({
+        examId,
+        studentId: req.user.id,
+        startedAt: now,
+        status: "in-progress",
+      });
     }
 
-    const endAt = new Date(attempt.startedAt.getTime() + exam.durationMins * 60000);
+    const endAt = new Date(
+      attempt.startedAt.getTime() + exam.durationMins * 60000
+    );
 
     return res.json({
       attemptId: attempt._id,
@@ -84,25 +102,37 @@ router.post("/save", auth, auth.requireRole("student"), async (req, res) => {
   try {
     const { attemptId, answers } = req.body || {};
     if (!attemptId || !Array.isArray(answers)) {
-      return res.status(400).json({ message: "attemptId and answers are required" });
+      return res
+        .status(400)
+        .json({ message: "attemptId and answers are required" });
     }
-    const attempt = await Attempt.findOne({ _id: attemptId, studentId: req.user.id });
+    const attempt = await Attempt.findOne({
+      _id: attemptId,
+      studentId: req.user.id,
+    });
     if (!attempt) return res.status(404).json({ message: "Attempt not found" });
     if (attempt.status !== "in-progress") {
       return res.status(400).json({ message: "Attempt is not in progress" });
     }
 
     const exam = await Exam.findById(attempt.examId);
-    const endAt = new Date(attempt.startedAt.getTime() + exam.durationMins * 60000);
+    const endAt = new Date(
+      attempt.startedAt.getTime() + exam.durationMins * 60000
+    );
     const now = new Date();
     if (now > endAt) {
       return res.status(400).json({ message: "Exam time is over" });
     }
 
-    const map = new Map((attempt.answers || []).map((a) => [a.questionIndex, a]));
+    const map = new Map(
+      (attempt.answers || []).map((a) => [a.questionIndex, a])
+    );
     for (const a of answers) {
       if (typeof a.questionIndex !== "number") continue;
-      map.set(a.questionIndex, { questionIndex: a.questionIndex, value: a.value });
+      map.set(a.questionIndex, {
+        questionIndex: a.questionIndex,
+        value: a.value,
+      });
     }
     attempt.answers = Array.from(map.values());
     await attempt.save();
@@ -118,7 +148,9 @@ router.post("/save", auth, auth.requireRole("student"), async (req, res) => {
 const scoreAttempt = (attempt, exam) => {
   let total = 0;
   let manualNeeded = false;
-  const ansMap = new Map((attempt.answers || []).map((a) => [a.questionIndex, a.value]));
+  const ansMap = new Map(
+    (attempt.answers || []).map((a) => [a.questionIndex, a.value])
+  );
 
   exam.questions.forEach((q, idx) => {
     if (q.type === "text") {
@@ -127,16 +159,25 @@ const scoreAttempt = (attempt, exam) => {
     }
     const given = ansMap.get(idx);
     if (q.type === "single") {
-      if (typeof given === "number" && Array.isArray(q.correctAnswers) && q.correctAnswers.length === 1) {
-        if (given === q.correctAnswers[0]) total += (q.points || 0);
+      if (
+        typeof given === "number" &&
+        Array.isArray(q.correctAnswers) &&
+        q.correctAnswers.length === 1
+      ) {
+        if (given === q.correctAnswers[0]) total += q.points || 0;
       }
     } else if (q.type === "mcq") {
       const correct = new Set(q.correctAnswers || []);
       const givenSet = new Set(Array.isArray(given) ? given : []);
       if (correct.size === givenSet.size) {
         let allMatch = true;
-        for (const i of correct) { if (!givenSet.has(i)) { allMatch = false; break; } }
-        if (allMatch) total += (q.points || 0);
+        for (const i of correct) {
+          if (!givenSet.has(i)) {
+            allMatch = false;
+            break;
+          }
+        }
+        if (allMatch) total += q.points || 0;
       }
     }
   });
@@ -147,8 +188,12 @@ const scoreAttempt = (attempt, exam) => {
 router.post("/submit", auth, auth.requireRole("student"), async (req, res) => {
   try {
     const { attemptId } = req.body || {};
-    if (!attemptId) return res.status(400).json({ message: "attemptId is required" });
-    const attempt = await Attempt.findOne({ _id: attemptId, studentId: req.user.id });
+    if (!attemptId)
+      return res.status(400).json({ message: "attemptId is required" });
+    const attempt = await Attempt.findOne({
+      _id: attemptId,
+      studentId: req.user.id,
+    });
     if (!attempt) return res.status(404).json({ message: "Attempt not found" });
     if (attempt.status !== "in-progress") {
       return res.status(400).json({ message: "Attempt is not in progress" });
@@ -164,7 +209,11 @@ router.post("/submit", auth, auth.requireRole("student"), async (req, res) => {
     attempt.manualNeeded = manualNeeded;
     await attempt.save();
 
-    return res.json({ score: total, manualNeeded, submittedAt: attempt.submittedAt });
+    return res.json({
+      score: total,
+      manualNeeded,
+      submittedAt: attempt.submittedAt,
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Internal server error" });
@@ -174,7 +223,10 @@ router.post("/submit", auth, auth.requireRole("student"), async (req, res) => {
 // GET /api/attempts/:id (owner only)
 router.get("/:id", auth, auth.requireRole("student"), async (req, res) => {
   try {
-    const attempt = await Attempt.findOne({ _id: req.params.id, studentId: req.user.id });
+    const attempt = await Attempt.findOne({
+      _id: req.params.id,
+      studentId: req.user.id,
+    });
     if (!attempt) return res.status(404).json({ message: "Attempt not found" });
     return res.json(attempt);
   } catch (err) {
@@ -184,53 +236,72 @@ router.get("/:id", auth, auth.requireRole("student"), async (req, res) => {
 });
 
 // POST /api/attempts/:id/proctor { type, meta }
-router.post("/:id/proctor", auth, auth.requireRole("student"), async (req, res) => {
-  try {
-    const attempt = await Attempt.findOne({ _id: req.params.id, studentId: req.user.id });
-    if (!attempt) return res.status(404).json({ message: "Attempt not found" });
-    const { type, meta } = req.body || {};
-    if (!type) return res.status(400).json({ message: "type is required" });
+router.post(
+  "/:id/proctor",
+  auth,
+  auth.requireRole("student"),
+  async (req, res) => {
+    try {
+      const attempt = await Attempt.findOne({
+        _id: req.params.id,
+        studentId: req.user.id,
+      });
+      if (!attempt)
+        return res.status(404).json({ message: "Attempt not found" });
+      const { type, meta } = req.body || {};
+      if (!type) return res.status(400).json({ message: "type is required" });
 
-    // append to attempt summary and also create event doc
-    attempt.violations.push({ type, at: new Date(), meta });
-    await attempt.save();
+      // append to attempt summary and also create event doc
+      attempt.violations.push({ type, at: new Date(), meta });
+      await attempt.save();
 
-    await ProctoringEvent.create({ attemptId: attempt._id, type, meta });
+      await ProctoringEvent.create({ attemptId: attempt._id, type, meta });
 
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Internal server error" });
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
   }
-});
+);
 
 // Faculty: list attempts for an exam
-router.get("/exam/:examId/attempts", auth, auth.requireRole("faculty"), async (req, res) => {
-  try {
-    const exam = await Exam.findOne({ _id: req.params.examId, createdBy: req.user.id });
-    if (!exam) return res.status(404).json({ message: "Exam not found" });
+router.get(
+  "/exam/:examId/attempts",
+  auth,
+  auth.requireRole("faculty"),
+  async (req, res) => {
+    try {
+      const exam = await Exam.findOne({
+        _id: req.params.examId,
+        createdBy: req.user.id,
+      });
+      if (!exam) return res.status(404).json({ message: "Exam not found" });
 
-    const attempts = await Attempt.find({ examId: exam._id })
-      .select("studentId status score submittedAt violations createdAt startedAt")
-      .sort({ createdAt: -1 })
-      .lean();
+      const attempts = await Attempt.find({ examId: exam._id })
+        .select(
+          "studentId status score submittedAt violations createdAt startedAt"
+        )
+        .sort({ createdAt: -1 })
+        .lean();
 
-    const mapped = attempts.map((a) => ({
-      _id: a._id,
-      studentId: a.studentId,
-      status: a.status,
-      score: a.score,
-      submittedAt: a.submittedAt,
-      startedAt: a.startedAt,
-      violationsCount: (a.violations || []).length,
-    }));
+      const mapped = attempts.map((a) => ({
+        _id: a._id,
+        studentId: a.studentId,
+        status: a.status,
+        score: a.score,
+        submittedAt: a.submittedAt,
+        startedAt: a.startedAt,
+        violationsCount: (a.violations || []).length,
+      }));
 
-    return res.json(mapped);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Internal server error" });
+      return res.json(mapped);
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
   }
-});
+);
 
 // Faculty/Student: get proctoring events for an attempt
 router.get("/:id/events", auth, async (req, res) => {
@@ -239,15 +310,21 @@ router.get("/:id/events", auth, async (req, res) => {
     if (!attempt) return res.status(404).json({ message: "Attempt not found" });
 
     // authorize: owner student OR faculty who owns exam
-    const isOwner = String(attempt.studentId) === String(req.user.id) && req.user.role === "student";
+    const isOwner =
+      String(attempt.studentId) === String(req.user.id) &&
+      req.user.role === "student";
     let isFacultyOwner = false;
     if (req.user.role === "faculty") {
       const exam = await Exam.findById(attempt.examId);
-      if (exam && String(exam.createdBy) === String(req.user.id)) isFacultyOwner = true;
+      if (exam && String(exam.createdBy) === String(req.user.id))
+        isFacultyOwner = true;
     }
-    if (!isOwner && !isFacultyOwner) return res.status(403).json({ message: "Forbidden" });
+    if (!isOwner && !isFacultyOwner)
+      return res.status(403).json({ message: "Forbidden" });
 
-    const events = await ProctoringEvent.find({ attemptId: attempt._id }).sort({ createdAt: 1 });
+    const events = await ProctoringEvent.find({ attemptId: attempt._id }).sort({
+      createdAt: 1,
+    });
     return res.json(events);
   } catch (err) {
     console.error(err);
