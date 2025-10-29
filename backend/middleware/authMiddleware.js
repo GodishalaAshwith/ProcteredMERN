@@ -1,18 +1,33 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/User");
 require("dotenv").config();
 
-module.exports = (req, res, next) => {
-  const token = req.header("Authorization")?.split(" ")[1]; // Extract token
+// Auth middleware: validates JWT and attaches decoded payload
+const auth = (req, res, next) => {
+  const header = req.header("Authorization");
+  const token = header?.startsWith("Bearer ") ? header.split(" ")[1] : header;
 
   if (!token)
     return res.status(401).json({ msg: "No token, authorization denied" });
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // Attach user info to request
+    req.user = decoded; // { id, role, iat, exp }
     next();
   } catch (err) {
-    res.status(401).json({ msg: "Invalid token" });
+    return res.status(401).json({ msg: "Invalid token" });
   }
 };
+
+// Role-based access control helper
+const requireRole =
+  (...roles) =>
+  (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ msg: "Forbidden: insufficient role" });
+    }
+    next();
+  };
+
+// Backward-compatible export: default is auth; attach requireRole
+auth.requireRole = requireRole;
+module.exports = auth;

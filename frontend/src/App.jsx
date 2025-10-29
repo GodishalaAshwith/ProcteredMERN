@@ -9,10 +9,17 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import ContactUs from "./pages/ContactUs";
+import AdminFaculty from "./pages/AdminFaculty";
 import Navbar from "./components/Navbar";
 
-const PrivateRoute = ({ children }) => {
-  return localStorage.getItem("token") ? children : <Navigate to="/login" />;
+const PrivateRoute = ({ children }) =>
+  localStorage.getItem("token") ? children : <Navigate to="/login" />;
+
+const RoleRoute = ({ allow, children }) => {
+  const stored = localStorage.getItem("user");
+  if (!stored) return <Navigate to="/login" />;
+  const user = JSON.parse(stored);
+  return allow.includes(user.role) ? children : <Navigate to="/" />;
 };
 
 function App() {
@@ -29,6 +36,16 @@ function App() {
           element={
             <PrivateRoute>
               <Dashboard />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/faculty"
+          element={
+            <PrivateRoute>
+              <RoleRoute allow={["admin"]}>
+                <AdminFaculty />
+              </RoleRoute>
             </PrivateRoute>
           }
         />

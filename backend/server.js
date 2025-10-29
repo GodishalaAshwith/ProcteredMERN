@@ -3,6 +3,7 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const connectDB = require("./config/db");
 const authRoutes = require("./routes/auth");
+const adminRoutes = require("./routes/admin");
 
 dotenv.config(); // Load environment variables
 
@@ -15,6 +16,12 @@ app.use(express.json()); // Parse JSON body
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
+
+// Health check
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
 
 // Default route
 app.get("/", (req, res) => {

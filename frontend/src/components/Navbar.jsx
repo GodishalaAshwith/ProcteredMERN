@@ -51,6 +51,14 @@ const Navbar = () => {
               >
                 Dashboard
               </Link>
+              {user.role === "admin" && (
+                <Link
+                  to="/admin/faculty"
+                  className="hover:bg-indigo-500 px-4 py-2 rounded-lg transition duration-300"
+                >
+                  Faculty
+                </Link>
+              )}
               <button
                 onClick={handleLogout}
                 className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-semibold transition duration-300"
