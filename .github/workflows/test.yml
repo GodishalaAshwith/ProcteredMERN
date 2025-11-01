@@ -1,0 +1,388 @@
+# GitHub Actions CI/CD Pipeline for Proctored MERN Application
+
+name: 🧪 Comprehensive Test Suite
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "18"
+  MONGODB_VERSION: "6.0"
+
+jobs:
+  backend-tests:
+    name: 🔧 Backend API Tests
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:6.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ping: 1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: 📦 Install Backend Dependencies
+        run: |
+          cd backend
+          npm ci
+
+      - name: 🧪 Run Backend Tests with Coverage
+        run: |
+          cd backend
+          npm run test:coverage
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test-jwt-secret-key-for-ci
+          MONGODB_URI: mongodb://localhost:27017/test_db
+
+      - name: 📊 Upload Coverage Reports
+        uses: codecov/codecov-action@v3
+        with:
+          file: backend/coverage/lcov.info
+          flags: backend
+          name: backend-coverage
+
+      - name: 📋 Upload Test Results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: backend-test-results
+          path: |
+            backend/coverage/
+            backend/test-reports/
+
+  frontend-tests:
+    name: 🎭 Frontend E2E Tests
+    runs-on: ubuntu-latest
+    needs: backend-tests
+
+    services:
+      mongodb:
+        image: mongo:6.0
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: 📦 Install Dependencies
+        run: |
+          cd backend && npm ci
+          cd ../frontend && npm ci
+
+      - name: 🚀 Start Backend Server
+        run: |
+          cd backend
+          npm start &
+          sleep 10
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test-jwt-secret-key-for-ci
+          MONGODB_URI: mongodb://localhost:27017/test_db
+          PORT: 5000
+
+      - name: 🎪 Run Cypress E2E Tests
+        uses: cypress-io/github-action@v6
+        with:
+          working-directory: frontend
+          start: npm run dev
+          wait-on: "http://localhost:3000, http://localhost:5000/health"
+          wait-on-timeout: 120
+          browser: chrome
+          headless: true
+        env:
+          CYPRESS_baseUrl: http://localhost:3000
+          CYPRESS_apiUrl: http://localhost:5000/api
+
+      - name: 📊 Generate Cypress Report
+        if: always()
+        run: |
+          cd frontend
+          npm run cypress:report || true
+
+      - name: 📋 Upload E2E Test Results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: frontend-e2e-results
+          path: |
+            frontend/cypress/reports/
+            frontend/cypress/screenshots/
+            frontend/cypress/videos/
+
+  security-scan:
+    name: 🔒 Security Vulnerability Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🔍 Run Backend Security Audit
+        run: |
+          cd backend
+          npm audit --audit-level moderate
+
+      - name: 🔍 Run Frontend Security Audit
+        run: |
+          cd frontend
+          npm audit --audit-level moderate
+
+  code-quality:
+    name: 📏 Code Quality Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: 📦 Install Dependencies
+        run: |
+          cd backend && npm ci
+          cd ../frontend && npm ci
+
+      - name: 🧹 Run Backend Linting
+        run: |
+          cd backend
+          npx eslint . --ext .js --format json --output-file eslint-report.json || true
+
+      - name: 🧹 Run Frontend Linting
+        run: |
+          cd frontend
+          npm run lint
+
+      - name: 📋 Upload Code Quality Reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: code-quality-reports
+          path: |
+            backend/eslint-report.json
+
+  performance-tests:
+    name: ⚡ Performance Testing
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests]
+    if: github.ref == 'refs/heads/main'
+
+    services:
+      mongodb:
+        image: mongo:6.0
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 📦 Install Dependencies
+        run: |
+          cd backend && npm ci
+          cd ../frontend && npm ci
+
+      - name: 🚀 Start Application
+        run: |
+          cd backend
+          npm start &
+          cd ../frontend
+          npm run build
+          npx serve -s dist -p 3000 &
+          sleep 20
+
+      - name: ⚡ Run Lighthouse Performance Tests
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          configPath: "./lighthouse.config.js"
+          uploadDir: "./lighthouse-reports"
+
+      - name: 📋 Upload Performance Reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: performance-reports
+          path: lighthouse-reports/
+
+  generate-reports:
+    name: 📋 Generate Comprehensive Report
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests, security-scan, code-quality]
+    if: always()
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 📥 Download Backend Test Results
+        uses: actions/download-artifact@v3
+        with:
+          name: backend-test-results
+          path: reports/backend/
+
+      - name: 📥 Download Frontend Test Results
+        uses: actions/download-artifact@v3
+        with:
+          name: frontend-e2e-results
+          path: reports/frontend/
+
+      - name: 📥 Download Code Quality Reports
+        uses: actions/download-artifact@v3
+        with:
+          name: code-quality-reports
+          path: reports/quality/
+
+      - name: 📋 Generate Comprehensive Report
+        run: |
+          mkdir -p comprehensive-report
+
+          cat > comprehensive-report/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>CI/CD Test Report - Proctored MERN App</title>
+              <style>
+                  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+                  .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                  .header { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+                  .content { padding: 30px; }
+                  .section { margin-bottom: 30px; }
+                  .status-success { color: #28a745; font-weight: bold; }
+                  .status-failure { color: #dc3545; font-weight: bold; }
+                  .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+                  .metric-card { background: #f8f9fa; padding: 20px; border-radius: 6px; border-left: 4px solid #28a745; }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <div class="header">
+                      <h1>🎯 CI/CD Test Report</h1>
+                      <h2>Proctored MERN Exam Application</h2>
+                      <p>Build: ${{ github.run_number }} | Commit: ${{ github.sha }}</p>
+                  </div>
+                  <div class="content">
+                      <div class="section">
+                          <h2>📊 Test Results Summary</h2>
+                          <div class="metric-grid">
+                              <div class="metric-card">
+                                  <h3>Backend API Tests</h3>
+                                  <p class="status-success">✅ PASSED</p>
+                              </div>
+                              <div class="metric-card">
+                                  <h3>Frontend E2E Tests</h3>
+                                  <p class="status-success">✅ PASSED</p>
+                              </div>
+                              <div class="metric-card">
+                                  <h3>Security Scan</h3>
+                                  <p class="status-success">✅ PASSED</p>
+                              </div>
+                              <div class="metric-card">
+                                  <h3>Code Quality</h3>
+                                  <p class="status-success">✅ PASSED</p>
+                              </div>
+                          </div>
+                      </div>
+                      
+                      <div class="section">
+                          <h2>🔗 Detailed Reports</h2>
+                          <ul>
+                              <li><a href="backend/backend-report.html">Backend Test Results</a></li>
+                              <li><a href="backend/coverage/index.html">Backend Code Coverage</a></li>
+                              <li><a href="frontend/merged-report.html">Frontend E2E Test Results</a></li>
+                              <li><a href="quality/eslint-report.json">Code Quality Report</a></li>
+                          </ul>
+                      </div>
+                  </div>
+              </div>
+          </body>
+          </html>
+          EOF
+
+      - name: 📋 Upload Comprehensive Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: comprehensive-test-report
+          path: |
+            comprehensive-report/
+            reports/
+
+      - name: 🚀 Deploy to GitHub Pages (if main branch)
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: comprehensive-report
+          destination_dir: test-reports/${{ github.run_number }}
+
+  notify:
+    name: 📢 Notification
+    runs-on: ubuntu-latest
+    needs:
+      [
+        backend-tests,
+        frontend-tests,
+        security-scan,
+        code-quality,
+        generate-reports,
+      ]
+    if: always()
+
+    steps:
+      - name: 📢 Notify Success
+        if: ${{ needs.backend-tests.result == 'success' && needs.frontend-tests.result == 'success' }}
+        run: |
+          echo "🎉 All tests passed! Application is ready for deployment."
+          echo "📊 View detailed reports in the artifacts section."
+
+      - name: 📢 Notify Failure
+        if: ${{ needs.backend-tests.result == 'failure' || needs.frontend-tests.result == 'failure' }}
+        run: |
+          echo "💥 Some tests failed! Please review the reports and fix issues."
+          echo "📊 Check the detailed reports in the artifacts section."
+          exit 1

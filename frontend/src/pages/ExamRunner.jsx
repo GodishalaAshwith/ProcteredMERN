@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   logProctorEvent,
@@ -24,28 +24,43 @@ const ExamRunner = () => {
     answers: {},
     remaining: 0,
     violations: 0,
-    overlay: null, // { reason, until }
+    overlay: null,
     started: false,
     submitted: false,
-    result: null, // { score, manualNeeded, submittedAt }
+    result: null,
+    showSubmitConfirm: false,
   });
 
   const intervalRef = useRef(null);
   const saveTimerRef = useRef(null);
   const answersRef = useRef({});
-  const ignoreFsChangeRef = useRef(false); // Flag to ignore initial fullscreen change
+  const ignoreFsChangeRef = useRef(false);
+  const proctorListenersAttached = useRef(false);
+  const isSubmittingRef = useRef(false);
 
   const requestFullscreen = async () => {
     const el = document.documentElement;
-    if (el.requestFullscreen) {
-      ignoreFsChangeRef.current = true; // Set flag before requesting
-      await el.requestFullscreen();
+    if (el.requestFullscreen && !document.fullscreenElement) {
+      try {
+        ignoreFsChangeRef.current = true;
+        await el.requestFullscreen();
+        // Give browser time to process fullscreen
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      } catch (e) {
+        console.error("Fullscreen request failed:", e);
+        ignoreFsChangeRef.current = false;
+      }
     }
   };
 
   const exitFullscreen = async () => {
-    if (document.fullscreenElement && document.exitFullscreen)
-      await document.exitFullscreen();
+    if (document.fullscreenElement && document.exitFullscreen) {
+      try {
+        await document.exitFullscreen();
+      } catch (e) {
+        console.error("Exit fullscreen failed:", e);
+      }
+    }
   };
 
   const syncCountdown = (endISO) => {
@@ -58,19 +73,152 @@ const ExamRunner = () => {
     }, 500);
   };
 
+  // Use useCallback to stabilize handleSubmit reference
+  const handleSubmit = useCallback(
+    async (auto = false) => {
+      if (isSubmittingRef.current) return;
+      if (!state.attemptId || state.submitted) return;
+
+      // If manual submit, show confirmation first
+      if (!auto) {
+        setState((s) => ({ ...s, showSubmitConfirm: true }));
+        return;
+      }
+
+      // Auto-submit (time expired or violations)
+      isSubmittingRef.current = true;
+
+      try {
+        const { data } = await submitAttempt(state.attemptId);
+        setState((s) => ({
+          ...s,
+          submitted: true,
+          result: data,
+          showSubmitConfirm: false,
+        }));
+      } catch (e) {
+        const res = e?.response?.data;
+        if (res && res.score !== undefined) {
+          setState((s) => ({
+            ...s,
+            submitted: true,
+            result: res,
+            showSubmitConfirm: false,
+          }));
+        } else {
+          setState((s) => ({
+            ...s,
+            error:
+              e?.response?.data?.message ||
+              e?.response?.data?.error ||
+              "Failed to submit",
+            showSubmitConfirm: false,
+          }));
+        }
+      } finally {
+        isSubmittingRef.current = false;
+        await exitFullscreen();
+      }
+    },
+    [state.attemptId, state.submitted]
+  );
+
+  const confirmSubmit = async () => {
+    if (isSubmittingRef.current) return;
+    if (!state.attemptId || state.submitted) return;
+
+    isSubmittingRef.current = true;
+
+    try {
+      const { data } = await submitAttempt(state.attemptId);
+      setState((s) => ({
+        ...s,
+        submitted: true,
+        result: data,
+        showSubmitConfirm: false,
+      }));
+    } catch (e) {
+      const res = e?.response?.data;
+      if (res && res.score !== undefined) {
+        setState((s) => ({
+          ...s,
+          submitted: true,
+          result: res,
+          showSubmitConfirm: false,
+        }));
+      } else {
+        setState((s) => ({
+          ...s,
+          error:
+            e?.response?.data?.message ||
+            e?.response?.data?.error ||
+            "Failed to submit",
+          showSubmitConfirm: false,
+        }));
+      }
+    } finally {
+      isSubmittingRef.current = false;
+      await exitFullscreen();
+    }
+  };
+
+  const cancelSubmit = () => {
+    setState((s) => ({ ...s, showSubmitConfirm: false }));
+  };
+
+  const registerViolation = useCallback(
+    async (type, meta) => {
+      if (!state.attemptId || state.submitted) return;
+
+      try {
+        await logProctorEvent(state.attemptId, type, meta);
+      } catch {}
+
+      const until = Date.now() + RETURN_TIMEOUT_SECONDS * 1000;
+      setState((s) => ({
+        ...s,
+        violations: s.violations + 1,
+        overlay: { reason: type, until },
+      }));
+
+      const check = setInterval(async () => {
+        if (
+          document.fullscreenElement &&
+          document.visibilityState === "visible"
+        ) {
+          clearInterval(check);
+          setState((s) => ({ ...s, overlay: null }));
+          return;
+        }
+        if (Date.now() >= until) {
+          clearInterval(check);
+          // Remove auto-submit on timeout - just clear the overlay
+          setState((s) => ({ ...s, overlay: null }));
+        }
+      }, 500);
+
+      // Remove auto-submit when violation limit is reached
+      // if (state.violations + 1 >= VIOLATION_LIMIT) {
+      //   clearInterval(check);
+      //   await handleSubmit(true);
+      // }
+    },
+    [state.attemptId, state.submitted, state.violations, handleSubmit]
+  );
+
   const performStart = async () => {
     setState((s) => ({ ...s, loading: true, error: "" }));
     try {
-      // Start attempt first; then request fullscreen on success to avoid toggling if server rejects
       const { data } = await startAttempt(examId);
       const { attemptId, exam, serverEndTime } = data;
 
-      // Request fullscreen BEFORE setting started=true to avoid proctoring listeners firing during transition
+      // Request fullscreen FIRST
       await requestFullscreen();
 
-      // Small delay to ensure fullscreen stabilizes before attaching proctoring listeners
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Wait longer for fullscreen to stabilize
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
+      // Now set started to true - this will trigger proctoring listeners
       setState((s) => ({
         ...s,
         loading: false,
@@ -79,7 +227,13 @@ const ExamRunner = () => {
         endAt: serverEndTime,
         started: true,
       }));
+
       syncCountdown(serverEndTime);
+
+      // Reset the ignore flag after everything is set up
+      setTimeout(() => {
+        ignoreFsChangeRef.current = false;
+      }, 1000);
     } catch (e) {
       setState((s) => ({
         ...s,
@@ -89,10 +243,7 @@ const ExamRunner = () => {
           e?.response?.data?.error ||
           "Failed to start attempt",
       }));
-      // ensure we are not left in fullscreen if the call failed for any reason
-      try {
-        await exitFullscreen();
-      } catch {}
+      await exitFullscreen();
     }
   };
 
@@ -107,42 +258,57 @@ const ExamRunner = () => {
       navigate("/");
       return;
     }
-    // do not auto-start; show confirmation UI first
-    // cleanup
+
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [examId]);
+  }, [examId, navigate]);
 
-  // Auto-submit when time runs out
+  // Auto-submit when time runs out - DISABLED
+  // useEffect(() => {
+  //   if (
+  //     state.remaining === 0 &&
+  //     state.attemptId &&
+  //     !state.submitted &&
+  //     !isSubmittingRef.current
+  //   ) {
+  //     handleSubmit(true);
+  //   }
+  // }, [state.remaining, state.attemptId, state.submitted, handleSubmit]);
+
+  // Proctoring handlers - attach only once
   useEffect(() => {
-    if (state.remaining === 0 && state.attemptId) {
-      (async () => {
-        await handleSubmit(true);
-      })();
+    if (
+      !state.started ||
+      !state.attemptId ||
+      state.submitted ||
+      proctorListenersAttached.current
+    ) {
+      return;
     }
-  }, [state.remaining, state.attemptId]);
 
-  // Proctoring handlers
-  useEffect(() => {
-    if (!state.started || !state.attemptId || state.submitted) return;
+    proctorListenersAttached.current = true;
+
     const onVisibility = async () => {
-      if (document.visibilityState === "hidden") {
+      if (document.visibilityState === "hidden" && !state.submitted) {
         await registerViolation("visibility-hidden", { reason: "tab hidden" });
       }
     };
+
     const onBlur = async () => {
-      await registerViolation("tab-blur");
-    };
-    const onFsChange = async () => {
-      // Ignore the first fullscreen change event (when we enter fullscreen initially)
-      if (ignoreFsChangeRef.current) {
-        ignoreFsChangeRef.current = false;
-        return;
+      if (!state.submitted) {
+        await registerViolation("tab-blur");
       }
-      if (!document.fullscreenElement) {
+    };
+
+    const onFsChange = async () => {
+      // Always check the ignore flag first
+      if (ignoreFsChangeRef.current) {
+        return; // Don't reset the flag here
+      }
+
+      if (!document.fullscreenElement && !state.submitted) {
         await registerViolation("fullscreen-exit");
       }
     };
@@ -150,47 +316,14 @@ const ExamRunner = () => {
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("blur", onBlur);
     document.addEventListener("fullscreenchange", onFsChange);
+
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("fullscreenchange", onFsChange);
+      proctorListenersAttached.current = false;
     };
-  }, [state.started, state.attemptId, state.submitted]);
-
-  const registerViolation = async (type, meta) => {
-    if (!state.attemptId) return;
-    try {
-      await logProctorEvent(state.attemptId, type, meta);
-    } catch {}
-
-    // show overlay with countdown
-    const until = Date.now() + RETURN_TIMEOUT_SECONDS * 1000;
-    setState((s) => ({
-      ...s,
-      violations: s.violations + 1,
-      overlay: { reason: type, until },
-    }));
-
-    const check = setInterval(async () => {
-      if (
-        document.fullscreenElement &&
-        document.visibilityState === "visible"
-      ) {
-        clearInterval(check);
-        setState((s) => ({ ...s, overlay: null }));
-        return;
-      }
-      if (Date.now() >= until) {
-        clearInterval(check);
-        // timeout -> submit
-        await handleSubmit(true);
-      }
-    }, 500);
-
-    if (state.violations + 1 >= VIOLATION_LIMIT) {
-      await handleSubmit(true);
-    }
-  };
+  }, [state.started, state.attemptId, state.submitted, registerViolation]);
 
   const scheduleSave = (answersPatch) => {
     setState((s) => {
@@ -214,30 +347,6 @@ const ExamRunner = () => {
     scheduleSave({ [qIdx]: value });
   };
 
-  const handleSubmit = async (auto = false) => {
-    if (!state.attemptId || state.submitted) return;
-    try {
-      const { data } = await submitAttempt(state.attemptId);
-      setState((s) => ({ ...s, submitted: true, result: data }));
-    } catch (e) {
-      // show minimal error but still mark submitted if backend accepted
-      const res = e?.response?.data;
-      if (res && res.score !== undefined) {
-        setState((s) => ({ ...s, submitted: true, result: res }));
-      } else {
-        setState((s) => ({
-          ...s,
-          error:
-            e?.response?.data?.message ||
-            e?.response?.data?.error ||
-            "Failed to submit",
-        }));
-      }
-    } finally {
-      await exitFullscreen();
-    }
-  };
-
   const exitAfterSubmit = () => {
     navigate("/exams");
   };
@@ -245,7 +354,6 @@ const ExamRunner = () => {
   if (state.loading) return <div className="p-6">Loading...</div>;
   if (state.error) return <div className="p-6 text-red-600">{state.error}</div>;
 
-  // Pre-start confirmation screen
   if (!state.started) {
     return (
       <div className="max-w-3xl mx-auto p-6">
@@ -281,9 +389,8 @@ const ExamRunner = () => {
         <div className="fixed inset-0 bg-black/70 text-white flex flex-col items-center justify-center z-50">
           <h2 className="text-2xl font-bold mb-2">Stay on the exam</h2>
           <p className="mb-4">
-            Violation detected: {state.overlay.reason}. Return within{" "}
-            {Math.max(0, Math.ceil((state.overlay.until - Date.now()) / 1000))}s
-            or the exam will be submitted.
+            Violation detected: {state.overlay.reason}. Please return to the
+            exam to continue.
           </p>
           <button
             className="bg-white text-black px-4 py-2 rounded"
@@ -296,13 +403,26 @@ const ExamRunner = () => {
 
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">{exam.title}</h1>
-        <div className="text-lg font-semibold">
-          Time left: {mm}:{ss}
+        <div
+          className={`text-lg font-semibold ${
+            state.remaining === 0 ? "text-red-600" : ""
+          }`}
+        >
+          {state.remaining === 0
+            ? "Time expired - Please submit your exam"
+            : `Time left: ${mm}:${ss}`}
         </div>
       </div>
+
+      {state.remaining === 0 && !state.submitted && (
+        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-4">
+          <strong>Time has expired!</strong> Please submit your exam when you
+          are ready. You can still review and modify your answers.
+        </div>
+      )}
+
       <p className="text-gray-700 mb-4">{exam.description}</p>
 
-      {/* Submitted summary */}
       {state.submitted && (
         <div className="bg-white rounded shadow p-6 my-4">
           <h2 className="text-xl font-semibold mb-2">Test submitted</h2>
@@ -336,9 +456,8 @@ const ExamRunner = () => {
         </div>
       )}
 
-      {/* Questions */}
       {!state.submitted && (
-        <div className="space-y-4 opacity-100">
+        <div className="space-y-4">
           {exam.questions.map((q, idx) => (
             <div key={idx} className="bg-white rounded shadow p-4">
               <div className="font-medium mb-2">
@@ -349,6 +468,7 @@ const ExamRunner = () => {
                 <textarea
                   className="border rounded w-full px-3 py-2"
                   rows={3}
+                  value={state.answers[idx] || ""}
                   onChange={(e) => handleChange(idx, e.target.value)}
                   disabled={state.submitted}
                 />
@@ -360,6 +480,7 @@ const ExamRunner = () => {
                       <input
                         type="radio"
                         name={`q-${idx}`}
+                        checked={state.answers[idx] === oi}
                         onChange={() => handleChange(idx, oi)}
                         disabled={state.submitted}
                       />{" "}
@@ -374,11 +495,15 @@ const ExamRunner = () => {
                     <label key={oi} className="block">
                       <input
                         type="checkbox"
+                        checked={
+                          Array.isArray(state.answers[idx]) &&
+                          state.answers[idx].includes(oi)
+                        }
                         disabled={state.submitted}
                         onChange={(e) => {
                           const prev = new Set(
-                            Array.isArray(answersRef.current[idx])
-                              ? answersRef.current[idx]
+                            Array.isArray(state.answers[idx])
+                              ? state.answers[idx]
                               : []
                           );
                           e.target.checked ? prev.add(oi) : prev.delete(oi);
