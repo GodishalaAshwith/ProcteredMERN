@@ -326,6 +326,42 @@ const ExamRunner = () => {
     };
   }, [state.started, state.attemptId, state.submitted, registerViolation]);
 
+  // Anti-cheat: block copy/cut and common shortcuts; best-effort attempt to block Alt+Tab
+  useEffect(() => {
+    if (!state.started || state.submitted) return;
+
+    const preventKeys = (e) => {
+      const key = (e.key || "").toLowerCase();
+      // Block common clipboard/print/save/select-all shortcuts
+      if ((e.ctrlKey || e.metaKey) && ["c", "x", "p", "s", "a"].includes(key)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      // Best-effort: try to prevent Alt+Tab (OS-level; may not be capturable)
+      if (e.altKey && key === "tab") {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    const prevent = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    document.addEventListener("keydown", preventKeys, true);
+    document.addEventListener("copy", prevent, true);
+    document.addEventListener("cut", prevent, true);
+    document.addEventListener("contextmenu", prevent, true);
+
+    return () => {
+      document.removeEventListener("keydown", preventKeys, true);
+      document.removeEventListener("copy", prevent, true);
+      document.removeEventListener("cut", prevent, true);
+      document.removeEventListener("contextmenu", prevent, true);
+    };
+  }, [state.started, state.submitted]);
+
   const scheduleSave = (answersPatch) => {
     setState((s) => {
       const next = { ...s.answers, ...answersPatch };
