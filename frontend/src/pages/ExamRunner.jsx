@@ -182,21 +182,29 @@ const ExamRunner = () => {
         overlay: { reason: type, until },
       }));
 
-      const check = setInterval(async () => {
-        if (
-          document.fullscreenElement &&
-          document.visibilityState === "visible"
-        ) {
+      let cleared = false;
+      const clearOverlay = () => {
+        if (cleared) return;
+        cleared = true;
+        setState((s) => ({ ...s, overlay: null }));
+      };
+
+      const check = setInterval(() => {
+        const returned =
+          document.fullscreenElement && document.visibilityState === "visible";
+        const now = Date.now();
+        if (returned) {
           clearInterval(check);
-          setState((s) => ({ ...s, overlay: null }));
+          // Linger the warning for 1 more second after return so it is visible
+          setTimeout(clearOverlay, 1000);
           return;
         }
-        if (Date.now() >= until) {
+        if (now >= until) {
           clearInterval(check);
-          // Remove auto-submit on timeout - just clear the overlay
-          setState((s) => ({ ...s, overlay: null }));
+          // On timeout, just clear the overlay
+          clearOverlay();
         }
-      }, 500);
+      }, 250);
 
       // Remove auto-submit when violation limit is reached
       // if (state.violations + 1 >= VIOLATION_LIMIT) {
@@ -362,6 +370,28 @@ const ExamRunner = () => {
     };
   }, [state.started, state.submitted]);
 
+  // Disable text selection and drag while exam is active
+  useEffect(() => {
+    if (!state.started || state.submitted) return undefined;
+    const prevUserSelect = document.body.style.userSelect;
+    document.body.style.userSelect = "none";
+    const onSelectStart = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    const onDragStart = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    document.addEventListener("selectstart", onSelectStart, true);
+    document.addEventListener("dragstart", onDragStart, true);
+    return () => {
+      document.body.style.userSelect = prevUserSelect;
+      document.removeEventListener("selectstart", onSelectStart, true);
+      document.removeEventListener("dragstart", onDragStart, true);
+    };
+  }, [state.started, state.submitted]);
+
   const scheduleSave = (answersPatch) => {
     setState((s) => {
       const next = { ...s.answers, ...answersPatch };
@@ -431,6 +461,16 @@ const ExamRunner = () => {
             Violation detected: {state.overlay.reason}. Please return to the
             exam to continue.
           </p>
+          {typeof state.overlay.until === "number" && (
+            <div className="mb-4 text-sm text-gray-200">
+              Warning will clear in{" "}
+              {Math.max(
+                0,
+                Math.ceil((state.overlay.until - Date.now()) / 1000)
+              )}
+              s
+            </div>
+          )}
           <button
             className="bg-white text-black px-4 py-2 rounded"
             onClick={requestFullscreen}
@@ -473,18 +513,11 @@ const ExamRunner = () => {
             state.remaining === 0 ? "text-red-600" : ""
           }`}
         >
-          {state.remaining === 0
-            ? "Time expired - Please submit your exam"
-            : `Time left: ${mm}:${ss}`}
+          {`Time left: ${mm}:${ss}`}
         </div>
       </div>
 
-      {state.remaining === 0 && !state.submitted && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-4">
-          <strong>Time has expired!</strong> Please submit your exam when you
-          are ready. You can still review and modify your answers.
-        </div>
-      )}
+      {/* Removed the time-expired paragraph that briefly showed at start */}
 
       <p className="text-gray-700 mb-4">{exam.description}</p>
 

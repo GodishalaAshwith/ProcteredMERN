@@ -3,6 +3,7 @@ import {
   Routes,
   Route,
   Navigate,
+  useLocation,
 } from "react-router-dom";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
@@ -38,10 +39,12 @@ RoleRoute.propTypes = {
   children: PropTypes.node.isRequired,
 };
 
-function App() {
+function AppShell() {
+  const location = useLocation();
+  const hideNavbar = location.pathname.startsWith("/attempt/");
   return (
-    <Router>
-      <Navbar />
+    <>
+      {!hideNavbar && <Navbar />}
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/register" element={<Register />} />
@@ -136,6 +139,14 @@ function App() {
           }
         />
       </Routes>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppShell />
     </Router>
   );
 }
