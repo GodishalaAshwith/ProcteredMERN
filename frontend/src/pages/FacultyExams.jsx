@@ -56,7 +56,7 @@ const FacultyExams = () => {
 
   return (
     <div className="max-w-5xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-start sm:items-center justify-between gap-2 flex-col sm:flex-row mb-6">
         <h1 className="text-3xl font-bold">My Exams</h1>
         <Link
           to="/faculty/exams/new"
@@ -72,8 +72,8 @@ const FacultyExams = () => {
         </div>
       )}
 
-      <div className="bg-white rounded shadow">
-        <table className="w-full table-auto">
+      <div className="bg-white rounded shadow overflow-x-auto">
+        <table className="w-full table-auto min-w-max">
           <thead className="bg-gray-50">
             <tr>
               <th className="text-left p-3">Title</th>

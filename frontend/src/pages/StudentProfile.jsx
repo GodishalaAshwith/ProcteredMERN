@@ -109,7 +109,7 @@ const StudentProfile = () => {
 
   return (
     <div className="max-w-2xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-start sm:items-center justify-between gap-2 flex-col sm:flex-row mb-4">
         <h1 className="text-3xl font-bold">Student Profile</h1>
         <button
           onClick={() => navigate(-1)}

@@ -549,7 +549,7 @@ Points: 5`;
 
   return (
     <div className="max-w-5xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-start sm:items-center justify-between gap-2 flex-col sm:flex-row mb-6">
         <h1 className="text-3xl font-bold text-slate-900">
           {isEdit ? "Edit Exam" : "Create Exam"}
         </h1>
@@ -1040,7 +1040,7 @@ Points: 5`;
           />
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div className="w-full max-w-3xl bg-white rounded-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
-              <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="px-5 py-4 border-b border-slate-200 flex items-start sm:items-center justify-between gap-2 flex-col sm:flex-row">
                 <h3 className="text-lg font-semibold text-slate-900">
                   Import questions
                 </h3>
@@ -1219,7 +1219,7 @@ Points: 5`;
                   </div>
                 )}
                 {!importError && (
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-start sm:items-center justify-between gap-2 flex-col sm:flex-row">
                     <p className="text-sm text-slate-600">
                       Parsed questions:{" "}
                       <span className="font-semibold text-slate-900">

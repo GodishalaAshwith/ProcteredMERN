@@ -588,7 +588,7 @@ const ExamRunner = () => {
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-start sm:items-center justify-between gap-2 sm:gap-4 flex-col sm:flex-row mb-4">
         <h1 className="text-2xl font-bold">{exam.title}</h1>
         <div
           className={`text-lg font-semibold ${

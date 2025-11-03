@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 const Navbar = () => {
   const [user, setUser] = useState(null);
+  const [open, setOpen] = useState(false); // mobile menu
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,106 +32,247 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="bg-slate-900 text-slate-100 border-b border-slate-800">
-      <div className="container mx-auto flex justify-between items-center px-4 py-3">
-        <Link
-          to="/"
-          className="text-2xl sm:text-3xl font-bold tracking-wide hover:text-emerald-400 transition-colors"
-        >
-          ProcTesting
-        </Link>
-
-        <div className="flex items-center gap-2 sm:gap-3">
+    <nav className="bg-slate-900 text-slate-100 border-b border-slate-800 sticky top-0 z-40">
+      <div className="container mx-auto px-4 py-3">
+        <div className="flex items-center justify-between">
           <Link
             to="/"
-            className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+            className="text-2xl sm:text-3xl font-bold tracking-wide hover:text-emerald-400 transition-colors"
           >
-            Home
+            ProcTesting
           </Link>
-          <Link
-            to="/contactus"
-            className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+          <button
+            className="md:hidden inline-flex items-center justify-center p-2 rounded-lg hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            aria-label="Toggle menu"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
           >
-            Contact
-          </Link>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="w-6 h-6"
+            >
+              {open ? (
+                <path
+                  fillRule="evenodd"
+                  d="M6.225 4.811a1 1 0 0 1 1.414 0L12 9.172l4.361-4.361a1 1 0 1 1 1.414 1.414L13.414 10.586l4.361 4.361a1 1 0 0 1-1.414 1.414L12 12l-4.361 4.361a1 1 0 1 1-1.414-1.414l4.361-4.361-4.361-4.361a1 1 0 0 1 0-1.414Z"
+                  clipRule="evenodd"
+                />
+              ) : (
+                <path
+                  fillRule="evenodd"
+                  d="M3.75 5.25a.75.75 0 0 1 .75-.75h15a.75.75 0 0 1 0 1.5H4.5a.75.75 0 0 1-.75-.75Zm0 6a.75.75 0 0 1 .75-.75h15a.75.75 0 0 1 0 1.5H4.5a.75.75 0 0 1-.75-.75Zm0 6a.75.75 0 0 1 .75-.75h15a.75.75 0 0 1 0 1.5H4.5a.75.75 0 0 1-.75-.75Z"
+                  clipRule="evenodd"
+                />
+              )}
+            </svg>
+          </button>
+          <div className="hidden md:flex items-center gap-2 lg:gap-3">
+            <Link
+              to="/"
+              className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+            >
+              Home
+            </Link>
+            <Link
+              to="/contactus"
+              className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+            >
+              Contact
+            </Link>
 
-          {user ? (
-            <>
-              <Link
-                to="/dashboard"
-                className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
-              >
-                Dashboard
-              </Link>
-              {user.role === "faculty" && (
+            {user ? (
+              <>
                 <Link
-                  to="/faculty/exams"
+                  to="/dashboard"
                   className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
                 >
-                  Exams
+                  Dashboard
                 </Link>
-              )}
-              {user.role === "student" && (
-                <>
+                {user.role === "faculty" && (
                   <Link
-                    to="/exams"
+                    to="/faculty/exams"
                     className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
                   >
                     Exams
                   </Link>
+                )}
+                {user.role === "student" && (
+                  <>
+                    <Link
+                      to="/exams"
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                    >
+                      Exams
+                    </Link>
+                    <Link
+                      to="/student/profile"
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                    >
+                      Profile
+                    </Link>
+                  </>
+                )}
+                {user.role === "admin" && (
+                  <>
+                    <Link
+                      to="/admin/faculty"
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                    >
+                      Faculty
+                    </Link>
+                    <Link
+                      to="/admin/users"
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                    >
+                      Users
+                    </Link>
+                    <Link
+                      to="/admin/students/upload"
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                    >
+                      Students
+                    </Link>
+                  </>
+                )}
+                <button
+                  onClick={handleLogout}
+                  className="ml-1 bg-emerald-600 hover:bg-emerald-500 text-slate-900 font-semibold px-3 py-2 rounded-lg transition-colors"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                >
+                  Login
+                </Link>
+                <Link
+                  to="/register"
+                  className="px-3 py-2 rounded-lg bg-emerald-600 text-slate-900 font-semibold hover:bg-emerald-500 transition-colors"
+                >
+                  Register
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile menu */}
+        <div
+          className={`md:hidden transition-all duration-200 ${
+            open ? "max-h-[480px] opacity-100" : "max-h-0 opacity-0"
+          } overflow-hidden`}
+        >
+          <div className="pt-3 flex flex-col gap-1">
+            <Link
+              to="/"
+              onClick={() => setOpen(false)}
+              className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+            >
+              Home
+            </Link>
+            <Link
+              to="/contactus"
+              onClick={() => setOpen(false)}
+              className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+            >
+              Contact
+            </Link>
+            {user ? (
+              <>
+                <Link
+                  to="/dashboard"
+                  onClick={() => setOpen(false)}
+                  className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                >
+                  Dashboard
+                </Link>
+                {user.role === "faculty" && (
                   <Link
-                    to="/student/profile"
+                    to="/faculty/exams"
+                    onClick={() => setOpen(false)}
                     className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
                   >
-                    Profile
+                    Exams
                   </Link>
-                </>
-              )}
-              {user.role === "admin" && (
-                <>
-                  <Link
-                    to="/admin/faculty"
-                    className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
-                  >
-                    Faculty
-                  </Link>
-                  <Link
-                    to="/admin/users"
-                    className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
-                  >
-                    Users
-                  </Link>
-                  <Link
-                    to="/admin/students/upload"
-                    className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
-                  >
-                    Students
-                  </Link>
-                </>
-              )}
-              <button
-                onClick={handleLogout}
-                className="ml-1 bg-emerald-600 hover:bg-emerald-500 text-slate-900 font-semibold px-3 py-2 rounded-lg transition-colors"
-              >
-                Logout
-              </button>
-            </>
-          ) : (
-            <>
-              <Link
-                to="/login"
-                className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
-              >
-                Login
-              </Link>
-              <Link
-                to="/register"
-                className="px-3 py-2 rounded-lg bg-emerald-600 text-slate-900 font-semibold hover:bg-emerald-500 transition-colors"
-              >
-                Register
-              </Link>
-            </>
-          )}
+                )}
+                {user.role === "student" && (
+                  <>
+                    <Link
+                      to="/exams"
+                      onClick={() => setOpen(false)}
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                    >
+                      Exams
+                    </Link>
+                    <Link
+                      to="/student/profile"
+                      onClick={() => setOpen(false)}
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                    >
+                      Profile
+                    </Link>
+                  </>
+                )}
+                {user.role === "admin" && (
+                  <>
+                    <Link
+                      to="/admin/faculty"
+                      onClick={() => setOpen(false)}
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                    >
+                      Faculty
+                    </Link>
+                    <Link
+                      to="/admin/users"
+                      onClick={() => setOpen(false)}
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                    >
+                      Users
+                    </Link>
+                    <Link
+                      to="/admin/students/upload"
+                      onClick={() => setOpen(false)}
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                    >
+                      Students
+                    </Link>
+                  </>
+                )}
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    handleLogout();
+                  }}
+                  className="mt-1 bg-emerald-600 hover:bg-emerald-500 text-slate-900 font-semibold px-3 py-2 rounded-lg transition-colors text-left"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  onClick={() => setOpen(false)}
+                  className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                >
+                  Login
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={() => setOpen(false)}
+                  className="px-3 py-2 rounded-lg bg-emerald-600 text-slate-900 font-semibold hover:bg-emerald-500 transition-colors"
+                >
+                  Register
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </nav>

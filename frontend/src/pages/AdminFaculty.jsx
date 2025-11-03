@@ -119,8 +119,8 @@ const AdminFaculty = () => {
         </button>
       </form>
 
-      <div className="bg-white rounded shadow">
-        <table className="w-full table-auto">
+      <div className="bg-white rounded shadow overflow-x-auto">
+        <table className="w-full table-auto min-w-max">
           <thead className="bg-gray-50">
             <tr>
               <th className="text-left p-3">Name</th>

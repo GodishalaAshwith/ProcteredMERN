@@ -193,9 +193,9 @@ const FacultySubmissions = () => {
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-start sm:items-center justify-between gap-2 sm:gap-4 flex-col sm:flex-row">
         <h1 className="text-3xl font-bold">Submissions</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <button
             onClick={exportCSV}
             disabled={!rows.length}
@@ -225,8 +225,8 @@ const FacultySubmissions = () => {
         <div className="bg-red-100 text-red-700 px-4 py-2 rounded">{error}</div>
       )}
 
-      <div className="bg-white rounded shadow">
-        <table className="w-full table-auto">
+      <div className="bg-white rounded shadow overflow-x-auto">
+        <table className="w-full table-auto min-w-max">
           <thead className="bg-gray-50">
             <tr>
               <th className="text-left p-3">Attempt</th>
@@ -294,7 +294,7 @@ const FacultySubmissions = () => {
 
       {selected && (
         <div className="bg-white rounded shadow p-4">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-start sm:items-center justify-between mb-2 gap-2 flex-col sm:flex-row">
             <h2 className="text-xl font-semibold">
               Proctoring events for {selected}
             </h2>
