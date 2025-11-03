@@ -1,5 +1,16 @@
 # Environment Configuration Changes - Summary
 
+## 2025-11-03: Student upcoming exams & countdown
+
+- Backend `/api/exams/available` now returns both active and upcoming exams (not yet started but scheduled in the future) for the logged-in student, sorted by `window.start`.
+- Frontend `frontend/src/pages/StudentExams.jsx` now:
+  - Shows upcoming exams with an "Upcoming" badge.
+  - Displays a live countdown (e.g., "Starts in 1h 23m 45s").
+  - Disables the Start button until the exam window opens.
+  - Keeps existing status badges (in-progress/submitted/invalid) for active or completed attempts.
+
+No changes required to exam creation; start/submit rules are still enforced server-side.
+
 ## Changes Made
 
 ### 1. Created Environment Configuration Files

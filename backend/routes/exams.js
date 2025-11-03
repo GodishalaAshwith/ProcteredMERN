@@ -37,7 +37,7 @@ router.get("/", auth, auth.requireRole("faculty"), async (req, res) => {
 });
 
 // Get exam by id (faculty owned)
-// Student: list available exams for current time window and profile match
+// Student: list exams that are active now OR scheduled in the future and match profile
 router.get(
   "/available",
   auth,
@@ -51,15 +51,14 @@ router.get(
       );
       if (!student) return res.status(404).json({ message: "User not found" });
 
-      // find exams in active window
+      // find exams that have not ended yet (active or upcoming)
       const exams = await Exam.find({
-        "window.start": { $lte: now },
         "window.end": { $gte: now },
       })
         .select(
           "title description durationMins window assignmentCriteria retakeGrants"
         )
-        .sort({ window: 1 });
+        .sort({ "window.start": 1 });
 
       // local match function (case-insensitive for text fields)
       const matches = (exam) => {
