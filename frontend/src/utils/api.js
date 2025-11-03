@@ -1,8 +1,18 @@
 import axios from "axios";
 
-// Hard-coded backend base URL (includes /api)
-// Requested override: https://procteredmern.onrender.com
-const API_BASE = "https://procteredmern.onrender.com/api";
+// Prefer build-time environment variable VITE_API_BASE.
+// Accept either a base with or without trailing /api and normalize it.
+const normalizeBase = (base) => {
+  if (!base) return null;
+  const trimmed = base.replace(/\/$/, "");
+  return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
+};
+
+const API_BASE =
+  normalizeBase(import.meta.env?.VITE_API_BASE) ||
+  // Fallback to existing hardcoded value if env is not set
+  "https://procteredmern.onrender.com/api";
+
 const API = axios.create({ baseURL: API_BASE });
 
 // Auth
