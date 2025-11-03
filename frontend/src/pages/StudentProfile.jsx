@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getCurrentUser, updateProfile } from "../utils/api";
+import { getCurrentUser, updateProfile, changePassword } from "../utils/api";
 
 const StudentProfile = () => {
   const navigate = useNavigate();
@@ -8,6 +8,14 @@ const StudentProfile = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [pwdOpen, setPwdOpen] = useState(false);
+  const [pwdSaving, setPwdSaving] = useState(false);
+  const [pwdErr, setPwdErr] = useState("");
+  const [pwdForm, setPwdForm] = useState({
+    current: "",
+    next: "",
+    confirm: "",
+  });
   const [form, setForm] = useState({
     name: "",
     college: "",
@@ -199,6 +207,17 @@ const StudentProfile = () => {
               >
                 {saving ? "Saving..." : "Save Profile"}
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPwdForm({ current: "", next: "", confirm: "" });
+                  setPwdErr("");
+                  setPwdOpen(true);
+                }}
+                className="ml-3 bg-slate-200 text-slate-900 px-4 py-2 rounded hover:bg-slate-300"
+              >
+                Change Password
+              </button>
             </div>
           </>
         )}
@@ -208,6 +227,106 @@ const StudentProfile = () => {
         Tip: Fill these fields so exams assigned to your year/branch/section
         show up under Exams.
       </div>
+
+      {pwdOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded shadow max-w-md w-full p-4">
+            <h2 className="text-xl font-semibold mb-3">Change Password</h2>
+            {pwdErr && (
+              <div className="bg-red-100 text-red-700 px-3 py-2 rounded mb-3">
+                {pwdErr}
+              </div>
+            )}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium">
+                  Current Password
+                </label>
+                <input
+                  type="password"
+                  className="border rounded w-full px-3 py-2"
+                  value={pwdForm.current}
+                  onChange={(e) =>
+                    setPwdForm({ ...pwdForm, current: e.target.value })
+                  }
+                  autoComplete="current-password"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  className="border rounded w-full px-3 py-2"
+                  value={pwdForm.next}
+                  onChange={(e) =>
+                    setPwdForm({ ...pwdForm, next: e.target.value })
+                  }
+                  autoComplete="new-password"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">
+                  Confirm New Password
+                </label>
+                <input
+                  type="password"
+                  className="border rounded w-full px-3 py-2"
+                  value={pwdForm.confirm}
+                  onChange={(e) =>
+                    setPwdForm({ ...pwdForm, confirm: e.target.value })
+                  }
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                className="px-4 py-2 rounded bg-slate-200"
+                onClick={() => setPwdOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded bg-emerald-600 text-slate-900 font-semibold disabled:opacity-60"
+                disabled={pwdSaving}
+                onClick={async () => {
+                  setPwdErr("");
+                  if (!pwdForm.current || !pwdForm.next || !pwdForm.confirm) {
+                    setPwdErr("Please fill all fields");
+                    return;
+                  }
+                  if (pwdForm.next.length < 8) {
+                    setPwdErr("New password must be at least 8 characters");
+                    return;
+                  }
+                  if (pwdForm.next !== pwdForm.confirm) {
+                    setPwdErr("New password and confirm password do not match");
+                    return;
+                  }
+                  try {
+                    setPwdSaving(true);
+                    await changePassword(pwdForm.current, pwdForm.next);
+                    setPwdOpen(false);
+                    setSuccess("Password updated successfully");
+                  } catch (e) {
+                    setPwdErr(
+                      e?.response?.data?.message ||
+                        e?.response?.data?.error ||
+                        "Failed to change password"
+                    );
+                  } finally {
+                    setPwdSaving(false);
+                  }
+                }}
+              >
+                {pwdSaving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

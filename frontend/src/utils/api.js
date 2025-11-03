@@ -12,6 +12,12 @@ export const login = (formData) => API.post("/auth/login", formData);
 export const getCurrentUser = () => API.get("/auth/user", localAuthHeader());
 export const updateProfile = (payload) =>
   API.put("/auth/profile", payload, localAuthHeader());
+export const changePassword = (currentPassword, newPassword) =>
+  API.post(
+    "/auth/change-password",
+    { currentPassword, newPassword },
+    localAuthHeader()
+  );
 
 // Helpers
 const authHeader = (token) => ({
