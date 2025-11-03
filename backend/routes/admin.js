@@ -63,6 +63,148 @@ router.get("/faculty", auth, auth.requireRole("admin"), async (_req, res) => {
   }
 });
 
+// Admin: List users with filters
+// GET /api/admin/users?role=student|faculty&search=&department=&college=&section=&year=&semester=
+router.get("/users", auth, auth.requireRole("admin"), async (req, res) => {
+  try {
+    const {
+      role,
+      search,
+      department,
+      college,
+      section,
+      year,
+      semester,
+      limit = 200,
+      page = 1,
+      sort = "-createdAt",
+    } = req.query;
+
+    const q = {};
+    if (role) q.role = role;
+    if (department) q.department = department;
+    if (college) q.college = college;
+    if (section !== undefined) {
+      const n = Number(section);
+      if (!Number.isNaN(n)) q.section = n;
+    }
+    if (year !== undefined) {
+      const n = Number(year);
+      if (!Number.isNaN(n)) q.year = n;
+    }
+    if (semester !== undefined) {
+      const n = Number(semester);
+      if (!Number.isNaN(n)) q.semester = n;
+    }
+    if (search) {
+      const s = String(search).trim();
+      q.$or = [
+        { name: { $regex: s, $options: "i" } },
+        { email: { $regex: s, $options: "i" } },
+        { rollno: { $regex: s, $options: "i" } },
+      ];
+    }
+
+    const lim = Math.max(1, Math.min(500, Number(limit) || 200));
+    const pg = Math.max(1, Number(page) || 1);
+    const skip = (pg - 1) * lim;
+
+    const [items, total] = await Promise.all([
+      User.find(q)
+        .select(
+          "name email rollno role college year department section semester createdAt"
+        )
+        .sort(sort)
+        .skip(skip)
+        .limit(lim),
+      User.countDocuments(q),
+    ]);
+
+    return res.json({ items, total, page: pg, limit: lim });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Admin: Update a user
+// PATCH /api/admin/users/:id
+router.patch(
+  "/users/:id",
+  auth,
+  auth.requireRole("admin"),
+  async (req, res) => {
+    try {
+      const id = req.params.id;
+      const allowed = [
+        "name",
+        "email",
+        "rollno",
+        "college",
+        "year",
+        "department",
+        "section",
+        "semester",
+      ];
+      const update = {};
+      for (const k of allowed) {
+        if (req.body[k] !== undefined) update[k] = req.body[k];
+      }
+
+      // Normalize numeric fields
+      if (update.section !== undefined) update.section = Number(update.section);
+      if (update.year !== undefined) update.year = Number(update.year);
+      if (update.semester !== undefined)
+        update.semester = Number(update.semester);
+
+      const user = await User.findByIdAndUpdate(id, update, {
+        new: true,
+        runValidators: true,
+      }).select("-password");
+
+      if (!user) return res.status(404).json({ message: "User not found" });
+      return res.json(user);
+    } catch (err) {
+      console.error(err);
+      // Likely duplicate key error for email/rollno
+      if (err && err.code === 11000) {
+        return res
+          .status(400)
+          .json({ message: "Duplicate key", keyValue: err.keyValue });
+      }
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// Admin: Reset a user's password
+// POST /api/admin/users/:id/reset-password { toRollno?: boolean }
+router.post(
+  "/users/:id/reset-password",
+  auth,
+  auth.requireRole("admin"),
+  async (req, res) => {
+    try {
+      const id = req.params.id;
+      const { toRollno = true } = req.body || {};
+      const user = await User.findById(id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      let newPassword = "changeme123";
+      if (toRollno && user.rollno) newPassword = String(user.rollno);
+
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(newPassword, salt);
+      await user.save();
+
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
 module.exports = router;
 
 // Admin-only: Bulk upload students via CSV/XLSX

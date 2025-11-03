@@ -9,6 +9,14 @@ import {
 
 const RETURN_TIMEOUT_SECONDS = 10;
 const AUTOSAVE_MS = 3000;
+// If a student leaves fullscreen/tab twice, we'll auto-submit
+const SERIOUS_VIOLATION_TYPES = new Set([
+  "fullscreen-exit",
+  "visibility-hidden",
+  "tab-blur",
+  "window-resize",
+]);
+const AUTO_SUBMIT_AFTER_SERIOUS_COUNT = 2;
 
 const ExamRunner = () => {
   const { examId } = useParams();
@@ -36,6 +44,7 @@ const ExamRunner = () => {
   const ignoreFsChangeRef = useRef(false);
   const proctorListenersAttached = useRef(false);
   const isSubmittingRef = useRef(false);
+  const seriousViolationCountRef = useRef(0);
 
   const requestFullscreen = async () => {
     const el = document.documentElement;
@@ -175,6 +184,18 @@ const ExamRunner = () => {
         // ignore logging failure
       }
 
+      // Track serious violations and auto-submit after threshold
+      if (SERIOUS_VIOLATION_TYPES.has(type)) {
+        seriousViolationCountRef.current += 1;
+        if (
+          seriousViolationCountRef.current >= AUTO_SUBMIT_AFTER_SERIOUS_COUNT
+        ) {
+          // Immediate auto-submit on repeated serious violation
+          await handleSubmit(true);
+          return;
+        }
+      }
+
       const until = Date.now() + RETURN_TIMEOUT_SECONDS * 1000;
       setState((s) => ({
         ...s,
@@ -306,7 +327,15 @@ const ExamRunner = () => {
       }
 
       if (!document.fullscreenElement && !state.submitted) {
-        await registerViolation("fullscreen-exit");
+        // Try to immediately restore fullscreen once to reduce false positives
+        try {
+          await requestFullscreen();
+        } catch {}
+        setTimeout(async () => {
+          if (!document.fullscreenElement && !state.submitted) {
+            await registerViolation("fullscreen-exit");
+          }
+        }, 200);
       }
     };
 
@@ -314,10 +343,31 @@ const ExamRunner = () => {
     window.addEventListener("blur", onBlur);
     document.addEventListener("fullscreenchange", onFsChange);
 
+    // Detect suspicious window resizing (e.g., minimize or unmaximize while exam active)
+    const onResize = async () => {
+      if (state.submitted) return;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      // Heuristic: if window height is very small or significantly smaller than screen,
+      // we consider it a violation even if fullscreen flag didn't fire
+      const shrunkTooMuch =
+        h < screen.availHeight * 0.6 || w < screen.availWidth * 0.6;
+      if (shrunkTooMuch) {
+        await registerViolation("window-resize", {
+          w,
+          h,
+          sw: screen.availWidth,
+          sh: screen.availHeight,
+        });
+      }
+    };
+    window.addEventListener("resize", onResize);
+
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("fullscreenchange", onFsChange);
+      window.removeEventListener("resize", onResize);
       proctorListenersAttached.current = false;
     };
   }, [state.started, state.attemptId, state.submitted, registerViolation]);
@@ -338,6 +388,11 @@ const ExamRunner = () => {
         e.preventDefault();
         e.stopPropagation();
       }
+      // Attempt to block F11 (browser fullscreen toggle) and Escape (exit fullscreen)
+      if (key === "f11" || key === "escape") {
+        e.preventDefault();
+        e.stopPropagation();
+      }
     };
 
     const prevent = (e) => {
@@ -349,12 +404,20 @@ const ExamRunner = () => {
     document.addEventListener("copy", prevent, true);
     document.addEventListener("cut", prevent, true);
     document.addEventListener("contextmenu", prevent, true);
+    const beforeUnload = (e) => {
+      // Warn before leaving or reloading during exam
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
 
     return () => {
       document.removeEventListener("keydown", preventKeys, true);
       document.removeEventListener("copy", prevent, true);
       document.removeEventListener("cut", prevent, true);
       document.removeEventListener("contextmenu", prevent, true);
+      window.removeEventListener("beforeunload", beforeUnload);
     };
   }, [state.started, state.submitted]);
 

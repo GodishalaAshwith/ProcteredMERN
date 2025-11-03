@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import ContactUs from "./pages/ContactUs";
 import AdminFaculty from "./pages/AdminFaculty";
 import AdminStudentsUpload from "./pages/AdminStudentsUpload";
+import AdminUsers from "./pages/AdminUsers";
 import FacultyExams from "./pages/FacultyExams";
 import ExamEditor from "./pages/ExamEditor";
 import FacultySubmissions from "./pages/FacultySubmissions";
@@ -65,6 +66,16 @@ function AppShell() {
             <PrivateRoute>
               <RoleRoute allow={["admin"]}>
                 <AdminFaculty />
+              </RoleRoute>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <PrivateRoute>
+              <RoleRoute allow={["admin"]}>
+                <AdminUsers />
               </RoleRoute>
             </PrivateRoute>
           }

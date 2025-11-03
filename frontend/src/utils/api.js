@@ -41,6 +41,20 @@ export const uploadStudents = (file, token) => {
   });
 };
 
+// Admin - Users management
+export const listUsers = (params, token) =>
+  API.get("/admin/users", { ...authHeader(token), params });
+
+export const updateUser = (id, payload, token) =>
+  API.patch(`/admin/users/${id}`, payload, authHeader(token));
+
+export const resetUserPassword = (id, toRollno = true, token) =>
+  API.post(
+    `/admin/users/${id}/reset-password`,
+    { toRollno },
+    authHeader(token)
+  );
+
 // Faculty - Exams
 export const listMyExams = () => API.get("/exams", localAuthHeader());
 export const createExam = (payload) =>

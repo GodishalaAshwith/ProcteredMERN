@@ -84,6 +84,12 @@ const Navbar = () => {
                     Faculty
                   </Link>
                   <Link
+                    to="/admin/users"
+                    className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                  >
+                    Users
+                  </Link>
+                  <Link
                     to="/admin/students/upload"
                     className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
                   >
