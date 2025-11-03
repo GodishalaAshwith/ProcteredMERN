@@ -73,7 +73,13 @@ The server exposes REST APIs at `http://localhost:5000/api`.
 
 ### Frontend setup
 
-1. Install and run the dev server:
+1. Create a `.env` file in `frontend/` (you can copy from `.env.example`):
+
+```
+VITE_API_BASE=http://localhost:5000/api
+```
+
+2. Install and run the dev server:
 
 ```
 cd frontend
@@ -81,9 +87,9 @@ npm install
 npm run dev
 ```
 
-2. Open the printed URL (typically `http://localhost:5173`).
+3. Open the printed URL (typically `http://localhost:5173`).
 
-Note: The frontend API base URL is currently set to `http://localhost:5000/api` in `frontend/src/utils/api.js`. If you change the backend port or host, update it accordingly.
+**For production deployment**, see [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed instructions on configuring environment variables for platforms like Vercel, Netlify, or Render.
 
 ---
 

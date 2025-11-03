@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AOS from "aos";
 import "aos/dist/aos.css";
+import config from "../config/config";
 
 const Register = () => {
   useEffect(() => {
@@ -88,7 +89,7 @@ const Register = () => {
 
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:5000/api/auth/register", {
+      const response = await fetch(config.getApiUrl("/api/auth/register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password }),
