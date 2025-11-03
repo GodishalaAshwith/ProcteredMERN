@@ -2,6 +2,233 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createExam, getExam, updateExam } from "../utils/api";
 
+// --- Import helpers ---
+// Simple CSV parser with quoted-field support
+const parseCSV = (text, delimiter = ",") => {
+  const rows = [];
+  let row = [];
+  let curr = "";
+  let inQuotes = false;
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (ch === '"') {
+      if (inQuotes && next === '"') {
+        curr += '"';
+        i += 2;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      i++;
+      continue;
+    }
+    if (!inQuotes && ch === delimiter) {
+      row.push(curr);
+      curr = "";
+      i++;
+      continue;
+    }
+    if (!inQuotes && (ch === "\n" || ch === "\r")) {
+      if (ch === "\r" && next === "\n") i++;
+      row.push(curr);
+      rows.push(row);
+      row = [];
+      curr = "";
+      i++;
+      continue;
+    }
+    curr += ch;
+    i++;
+  }
+  if (curr.length || row.length) {
+    row.push(curr);
+    rows.push(row);
+  }
+  return rows.map((r) => r.map((c) => c.trim()));
+};
+
+const headerIndexMap = (headerRow) => {
+  const map = {};
+  headerRow.forEach((h, idx) => {
+    const key = (h || "").toLowerCase().trim();
+    if (!key) return;
+    map[key] = idx;
+  });
+  return map;
+};
+
+const toIndicesFromCorrect = (correctRaw, options) => {
+  if (!correctRaw) return [];
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const parts = String(correctRaw)
+    .split(/[,;|]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const idxs = [];
+  parts.forEach((p) => {
+    const li = letters.indexOf(p.toUpperCase());
+    if (li >= 0 && li < options.length) {
+      idxs.push(li);
+      return;
+    }
+    if (/^\d+$/.test(p)) {
+      const n = parseInt(p, 10);
+      const zero = n > 0 && n <= options.length ? n - 1 : n;
+      if (zero >= 0 && zero < options.length) idxs.push(zero);
+      return;
+    }
+    const byText = options.findIndex(
+      (o) => o.trim().toLowerCase() === p.toLowerCase()
+    );
+    if (byText >= 0) idxs.push(byText);
+  });
+  return Array.from(new Set(idxs)).sort((a, b) => a - b);
+};
+
+const buildQuestion = ({ type, text, options, correct, points }) => {
+  const qText = (text || "").trim();
+  const pts = Number(points || 1) || 1;
+  const opts = (options || []).map((o) => String(o).trim()).filter(Boolean);
+
+  let qType = type;
+  if (!qType) qType = opts.length ? "single" : "text";
+  if (!["single", "mcq", "text"].includes(qType)) {
+    qType = opts.length ? "single" : "text";
+  }
+
+  if (qType === "text") {
+    return {
+      type: "text",
+      text: qText,
+      options: [],
+      correctAnswers: [],
+      points: pts,
+    };
+  }
+
+  const indices = toIndicesFromCorrect(correct, opts);
+  const corr =
+    qType === "single" ? (indices[0] != null ? [indices[0]] : [0]) : indices;
+  const finalOpts = opts.length >= 2 ? opts : [...opts, ""].slice(0, 2);
+  return {
+    type: qType,
+    text: qText,
+    options: finalOpts,
+    correctAnswers: corr,
+    points: pts,
+  };
+};
+
+// Sheets CSV/TSV parser, accepts headers: text,type,options,correct,points
+const parseFromSheets = (raw, delimiter = ",") => {
+  const rows = parseCSV(raw, delimiter);
+  if (!rows.length) return [];
+  const header = rows[0].map((h) => (h || "").toLowerCase());
+  const hasHeader = [
+    "text",
+    "question",
+    "type",
+    "options",
+    "correct",
+    "points",
+  ].some((h) => header.includes(h));
+  const dataRows = hasHeader ? rows.slice(1) : rows;
+  const hmap = hasHeader
+    ? headerIndexMap(rows[0])
+    : { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4 };
+  return dataRows
+    .map((r) => {
+      const get = (keyOrIdx) =>
+        typeof keyOrIdx === "number"
+          ? r[keyOrIdx] || ""
+          : r[hmap[keyOrIdx]] || "";
+      const text = get(
+        hmap.text !== undefined
+          ? "text"
+          : hmap.question !== undefined
+          ? "question"
+          : 0
+      );
+      const type = (get("type") || "").toLowerCase();
+      const rawOptions = get("options") || get(2) || "";
+      const options = rawOptions
+        .split(/\s*\|\s*|\s*;;\s*/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const correct = get("correct") || get(3) || "";
+      const points = get("points") || get(4) || "1";
+      if (!String(text).trim()) return null;
+      return buildQuestion({ type, text, options, correct, points });
+    })
+    .filter(Boolean);
+};
+
+// Docs parser: blocks separated by blank lines. Lines:
+// Q: question text
+// A) option, B) option ...
+// Correct: A,B or 1,2 or option text
+// Points: n
+const parseFromDocs = (raw) => {
+  const blocks = raw
+    .split(/\n{2,}/)
+    .map((b) => b.trim())
+    .filter(Boolean);
+  const letterLineRe = /^\s*([A-Za-z])[\)\.\-]\s+(.+)$/;
+  const result = [];
+  blocks.forEach((block) => {
+    const lines = block
+      .split(/\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (!lines.length) return;
+    let qText = lines[0].replace(/^Q(?:uestion)?\s*[:\-\.\)]\s*/i, "").trim();
+    if (!qText) qText = lines[0];
+    const options = [];
+    let correctRaw = "";
+    let type = "";
+    let points = "";
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      const opt = letterLineRe.exec(line);
+      if (opt) {
+        options.push(opt[2].trim());
+        continue;
+      }
+      if (/^correct\s*[:\-]/i.test(line)) {
+        correctRaw = line.replace(/^correct\s*[:\-]\s*/i, "").trim();
+        continue;
+      }
+      if (/^answer\s*[:\-]/i.test(line)) {
+        correctRaw = line.replace(/^answer\s*[:\-]\s*/i, "").trim();
+        continue;
+      }
+      if (/^type\s*[:\-]/i.test(line)) {
+        type = line
+          .replace(/^type\s*[:\-]\s*/i, "")
+          .trim()
+          .toLowerCase();
+        continue;
+      }
+      if (/^points?\s*[:\-]/i.test(line)) {
+        points = line.replace(/^points?\s*[:\-]\s*/i, "").trim();
+        continue;
+      }
+    }
+    if (!type)
+      type =
+        options.length === 0
+          ? "text"
+          : /,|;|\|/.test(correctRaw)
+          ? "mcq"
+          : "single";
+    result.push(
+      buildQuestion({ type, text: qText, options, correct: correctRaw, points })
+    );
+  });
+  return result;
+};
+
 const emptyQuestion = (type = "single") => {
   if (type === "text") {
     return {
@@ -46,6 +273,16 @@ const ExamEditor = () => {
     assignment: { college: "", year: [], department: [], section: [] },
     questions: [emptyQuestion()],
   });
+
+  // Import modal state
+  const [importOpen, setImportOpen] = useState(false);
+  const [importMode, setImportMode] = useState("sheets"); // 'sheets' | 'docs'
+  const [importDelimiter, setImportDelimiter] = useState(",");
+  const [importInput, setImportInput] = useState("");
+  const [parsedPreview, setParsedPreview] = useState([]);
+  const [importError, setImportError] = useState("");
+  const [replaceExisting, setReplaceExisting] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState("");
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
@@ -235,6 +472,77 @@ const ExamEditor = () => {
       setSaving(false);
     }
   };
+
+  // Import parsing helpers inside component scope
+  const runParse = (raw, mode, delimiter) => {
+    try {
+      setImportError("");
+      const parsed =
+        mode === "docs" ? parseFromDocs(raw) : parseFromSheets(raw, delimiter);
+      setParsedPreview(parsed);
+    } catch (e) {
+      setParsedPreview([]);
+      setImportError("Could not parse content. Check format and try again.");
+    }
+  };
+
+  useEffect(() => {
+    if (!importOpen) return;
+    runParse(importInput, importMode, importDelimiter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importInput, importMode, importDelimiter, importOpen]);
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    setSelectedFileName(file.name);
+    const text = await file.text();
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith(".csv")) setImportMode("sheets");
+    else if (lower.endsWith(".tsv")) {
+      setImportMode("sheets");
+      setImportDelimiter("\t");
+    } else if (lower.endsWith(".txt")) setImportMode("docs");
+    setImportInput(text);
+  };
+
+  const addImportedQuestions = () => {
+    if (!parsedPreview.length) return;
+    setForm((f) => ({
+      ...f,
+      questions: replaceExisting
+        ? [...parsedPreview]
+        : [...f.questions, ...parsedPreview],
+    }));
+    setImportOpen(false);
+    setImportInput("");
+    setParsedPreview([]);
+    setSelectedFileName("");
+    setReplaceExisting(false);
+  };
+
+  const sampleCSV = `text,type,options,correct,points
+What is 2+2?,single,2 | 3 | 4 | 5,3,1
+Select prime numbers,mcq,2 | 3 | 4 | 5,"A,B",3
+Explain Newton's second law,text,,,5`;
+
+  const sampleDocs = `Q: What is 2+2?
+A) 2
+B) 3
+C) 4
+D) 5
+Correct: C
+Points: 1
+
+Q: Select prime numbers
+A) 2
+B) 3
+C) 4
+D) 5
+Correct: A,B
+Points: 3
+
+Q: Explain Newton's second law
+Points: 5`;
 
   const years = [1, 2, 3, 4, 5, 6, 7, 8];
   const sections = [1, 2, 3, 4, 5];
@@ -517,6 +825,14 @@ const ExamEditor = () => {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
+                onClick={() => setImportOpen(true)}
+                className="px-3 py-2 rounded-md bg-slate-900 text-white hover:bg-slate-800"
+                title="Import from Google Sheets or Docs"
+              >
+                Import
+              </button>
+              <button
+                type="button"
                 onClick={() => addQuestionOfType("single")}
                 className="px-3 py-2 rounded-md border border-slate-300 hover:bg-slate-50 text-slate-800"
               >
@@ -716,6 +1032,270 @@ const ExamEditor = () => {
           </button>
         </div>
       </form>
+      {importOpen && (
+        <div className="fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-slate-900/60"
+            onClick={() => setImportOpen(false)}
+          />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="w-full max-w-3xl bg-white rounded-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Import questions
+                </h3>
+                <button
+                  onClick={() => setImportOpen(false)}
+                  className="text-slate-500 hover:text-slate-700"
+                  aria-label="Close import dialog"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="px-5 py-4 space-y-4 flex-1 overflow-y-auto">
+                <p className="text-sm text-slate-600">
+                  Choose a document or paste content. Supported formats:
+                </p>
+                <ul className="list-disc pl-5 text-sm text-slate-700">
+                  <li>
+                    <span className="font-medium">
+                      Google Sheets (CSV/TSV):
+                    </span>{" "}
+                    headers:{" "}
+                    <code className="font-mono">
+                      text, type, options, correct, points
+                    </code>
+                    . Options separated by <code className="font-mono">|</code>{" "}
+                    or <code className="font-mono">;;</code>.
+                  </li>
+                  <li>
+                    <span className="font-medium">Google Docs (Text):</span>{" "}
+                    blocks like “Q: …”, lines “A) …”, “Correct: A,B”, “Points:
+                    2”. Blank line between questions.
+                  </li>
+                </ul>
+                <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded p-3">
+                  <p className="mb-1">
+                    <span className="font-semibold">CSV tip:</span> CSV uses
+                    commas between columns. Each question is one row with
+                    columns{" "}
+                    <span className="font-mono">
+                      text,type,options,correct,points
+                    </span>
+                    . If a value contains commas (e.g., multiple correct
+                    answers), wrap it in quotes like{" "}
+                    <span className="font-mono">"A,B"</span>.
+                  </p>
+                  <p>
+                    <span className="font-semibold">
+                      Multiple correct answers:
+                    </span>{" "}
+                    use commas (e.g., <span className="font-mono">A,B</span> or{" "}
+                    <span className="font-mono">1,3</span>).
+                  </p>
+                </div>
+
+                <div className="flex flex-col md:flex-row gap-3 md:items-center">
+                  <div className="inline-flex rounded-md border border-slate-200 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setImportMode("sheets")}
+                      className={`px-4 py-2 text-sm ${
+                        importMode === "sheets"
+                          ? "bg-slate-900 text-white"
+                          : "bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      Google Sheets (CSV/TSV)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImportMode("docs")}
+                      className={`px-4 py-2 text-sm border-l border-slate-200 ${
+                        importMode === "docs"
+                          ? "bg-slate-900 text-white"
+                          : "bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      Google Docs (Text)
+                    </button>
+                  </div>
+                  {importMode === "sheets" && (
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm text-slate-700">
+                        Delimiter
+                      </label>
+                      <select
+                        value={importDelimiter}
+                        onChange={(e) => setImportDelimiter(e.target.value)}
+                        className="px-3 py-2 rounded-md border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      >
+                        <option value=",">Comma (,)</option>
+                        <option value="\t">Tab (TSV)</option>
+                        <option value=";">Semicolon (;)</option>
+                      </select>
+                    </div>
+                  )}
+                  <div className="md:ml-auto flex items-center gap-2">
+                    <label className="px-3 py-2 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer">
+                      <input
+                        type="file"
+                        accept=".csv,.tsv,.txt"
+                        className="hidden"
+                        onChange={(e) => handleFile(e.target.files?.[0])}
+                      />
+                      Choose file
+                    </label>
+                    {selectedFileName && (
+                      <span
+                        className="text-xs text-slate-600 truncate max-w-[12rem]"
+                        title={selectedFileName}
+                      >
+                        {selectedFileName}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {importMode === "sheets" ? (
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(sampleCSV);
+                        } catch {}
+                      }}
+                      className="px-3 py-2 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
+                    >
+                      Copy CSV template
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(sampleDocs);
+                        } catch {}
+                      }}
+                      className="px-3 py-2 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
+                    >
+                      Copy Docs template
+                    </button>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Paste{" "}
+                    {importMode === "sheets"
+                      ? "CSV/TSV from Sheets (File → Download → CSV/TSV)"
+                      : "text from Google Docs"}
+                  </label>
+                  <textarea
+                    rows={10}
+                    value={importInput}
+                    onChange={(e) => setImportInput(e.target.value)}
+                    className="w-full px-3 py-2 rounded-md border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder={
+                      importMode === "sheets"
+                        ? 'text,type,options,correct,points\nWhat is 2+2?,single,2 | 3 | 4 | 5,3,1\nSelect prime numbers,mcq,2 | 3 | 4 | 5,"A,B",3\nExplain Newton\'s second law,text,,,5'
+                        : "Q: What is 2+2?\nA) 2\nB) 3\nC) 4\nD) 5\nCorrect: C\nPoints: 1"
+                    }
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    For options, separate with “|” (pipe) or “;;”. “Correct”
+                    accepts letters (A,B), numbers (1,2), or option text. Use
+                    commas for multiple answers.
+                  </p>
+                </div>
+
+                {importError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded">
+                    {importError}
+                  </div>
+                )}
+                {!importError && (
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-slate-600">
+                      Parsed questions:{" "}
+                      <span className="font-semibold text-slate-900">
+                        {parsedPreview.length}
+                      </span>
+                    </p>
+                    <label className="text-sm inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="accent-emerald-600"
+                        checked={replaceExisting}
+                        onChange={(e) => setReplaceExisting(e.target.checked)}
+                      />
+                      Replace existing questions
+                    </label>
+                  </div>
+                )}
+
+                <div className="space-y-2 max-h-48 overflow-auto">
+                  {parsedPreview.slice(0, 3).map((q, i) => (
+                    <div
+                      key={i}
+                      className="border border-slate-200 rounded-md p-3"
+                    >
+                      <div className="text-xs uppercase tracking-wide text-slate-500">
+                        {q.type} • {q.points} pt{q.points > 1 ? "s" : ""}
+                      </div>
+                      <div className="text-slate-900 font-medium">{q.text}</div>
+                      {q.options?.length ? (
+                        <ul className="mt-1 text-sm text-slate-700 list-disc pl-5">
+                          {q.options.map((o, oi) => (
+                            <li
+                              key={oi}
+                              className={
+                                (q.correctAnswers || []).includes(oi)
+                                  ? "text-emerald-700"
+                                  : ""
+                              }
+                            >
+                              {o}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  ))}
+                  {!parsedPreview.length && (
+                    <div className="text-sm text-slate-500">
+                      Paste content or choose a file to see a preview.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-5 py-4 border-t border-slate-200 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setImportOpen(false)}
+                  className="px-4 py-2 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!parsedPreview.length}
+                  onClick={addImportedQuestions}
+                  className="px-4 py-2 rounded-md bg-emerald-600 text-slate-900 font-semibold disabled:opacity-60 hover:bg-emerald-500"
+                >
+                  Import{" "}
+                  {parsedPreview.length ? `(${parsedPreview.length})` : ""}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
