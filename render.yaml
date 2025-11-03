@@ -1,0 +1,38 @@
+services:
+  # Backend: Node.js Web Service
+  - type: web
+    name: proctered-mern-backend
+    env: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      # Fill the following in Render dashboard after first deploy or set here (not recommended to commit secrets)
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CLIENT_URL
+        fromService:
+          type: static_site
+          name: proctered-mern-frontend
+          property: url
+
+  # Frontend: Static Site
+  - type: static_site
+    name: proctered-mern-frontend
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_BASE
+        sync: false
+        # Set this to https://<your-backend>.onrender.com/api after backend is live.

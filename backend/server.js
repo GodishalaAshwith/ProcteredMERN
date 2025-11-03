@@ -13,7 +13,18 @@ const app = express();
 connectDB(); // Connect to MongoDB
 
 // Middleware
-app.use(cors({ origin: process.env.CLIENT_URL || "*" })); // Allow frontend to connect
+// Allow one or more frontend origins via env: CLIENT_URLS (comma-separated) or CLIENT_URL; defaults to '*'
+const originsEnv = process.env.CLIENT_URLS || process.env.CLIENT_URL || "*";
+const corsOptions =
+  originsEnv === "*"
+    ? { origin: "*" }
+    : {
+        origin: originsEnv
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      };
+app.use(cors(corsOptions)); // Allow frontend to connect
 app.use(express.json()); // Parse JSON body
 
 // Routes

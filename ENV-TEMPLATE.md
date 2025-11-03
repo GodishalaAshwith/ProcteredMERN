@@ -38,7 +38,10 @@ JWT_SECRET=your-local-development-secret-key-at-least-32-chars
 PORT=5000
 
 # Frontend URL for CORS
+# Either set a single URL:
 CLIENT_URL=http://localhost:5173
+# Or set multiple, comma-separated URLs (takes precedence over CLIENT_URL):
+# CLIENT_URLS=http://localhost:5173,https://your-frontend.vercel.app
 
 # Node Environment
 NODE_ENV=development
@@ -58,6 +61,8 @@ PORT=5000
 
 # Frontend URL for CORS (your deployed frontend domain)
 CLIENT_URL=https://your-frontend-app.vercel.app
+# Or multiple allowed origins:
+# CLIENT_URLS=https://your-frontend-app.vercel.app,https://preview-<id>--your-frontend.netlify.app
 
 # Node Environment
 NODE_ENV=production
@@ -198,13 +203,14 @@ console.log("JWT_SECRET:", process.env.JWT_SECRET ? "Set" : "Not Set");
 
 ## Quick Reference
 
-| Variable        | Location | Required | Example                   |
-| --------------- | -------- | -------- | ------------------------- |
-| `VITE_API_BASE` | Frontend | Yes      | `https://backend.com/api` |
-| `MONGO_URI`     | Backend  | Yes      | `mongodb+srv://...`       |
-| `JWT_SECRET`    | Backend  | Yes      | `random-64-char-string`   |
-| `CLIENT_URL`    | Backend  | Yes      | `https://frontend.com`    |
-| `PORT`          | Backend  | No\*     | `5000`                    |
-| `NODE_ENV`      | Backend  | Yes      | `production`              |
+| Variable        | Location | Required | Example                       |
+| --------------- | -------- | -------- | ----------------------------- |
+| `VITE_API_BASE` | Frontend | Yes      | `https://backend.com/api`     |
+| `MONGO_URI`     | Backend  | Yes      | `mongodb+srv://...`           |
+| `JWT_SECRET`    | Backend  | Yes      | `random-64-char-string`       |
+| `CLIENT_URL`    | Backend  | Yes      | `https://frontend.com`        |
+| `CLIENT_URLS`   | Backend  | No       | `https://a.com,https://b.com` |
+| `PORT`          | Backend  | No\*     | `5000`                        |
+| `NODE_ENV`      | Backend  | Yes      | `production`                  |
 
 \*Usually auto-set by hosting platform

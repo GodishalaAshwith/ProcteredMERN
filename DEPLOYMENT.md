@@ -30,6 +30,64 @@ This application uses environment variables to configure the API base URL, makin
 
 ## Production Deployment
 
+### Render: Step-by-step (Backend + Frontend)
+
+There are two ways to deploy on Render: via the dashboard (manual) or using the included `render.yaml` (infrastructure-as-code).
+
+#### Option A — One-click via render.yaml (recommended)
+
+1. Push your repository to GitHub (if not already) and ensure `render.yaml` exists at the repo root.
+2. Go to https://render.com and click New → Blueprint.
+3. Connect your GitHub repo and select the default settings Render detects from `render.yaml`:
+
+- Web Service: `proctered-mern-backend` (Node, rootDir `backend`)
+- Static Site: `proctered-mern-frontend` (rootDir `frontend`)
+
+4. Before the first deploy completes, open the backend service → Environment → Add variables:
+
+- `MONGO_URI` = your MongoDB connection string
+- `JWT_SECRET` = a long random secret
+- `CLIENT_URL` = your frontend URL (you can temporarily set `http://localhost:5173` and update later)
+
+5. Trigger a deploy for the backend and wait until it’s live. Note the backend URL (e.g., `https://proctered-mern-backend.onrender.com`).
+6. Open the frontend static site → Environment → Add variable:
+
+- `VITE_API_BASE` = `<BACKEND_URL>/api` (e.g., `https://proctered-mern-backend.onrender.com/api`)
+
+7. Re-deploy the frontend. When done, copy the frontend URL.
+8. Go back to the backend service and update `CLIENT_URL` to your final frontend URL. Redeploy backend.
+9. Test: open the frontend URL, register, and login.
+
+Notes:
+
+- Render doesn’t support appending paths when wiring env vars, so manually include `/api` in `VITE_API_BASE`.
+- A health check is available at `/health` on the backend.
+
+#### Option B — Manual setup via Render dashboard
+
+Backend (Web Service):
+
+1. New → Web Service → Connect your repo → Root Directory: `backend`.
+2. Environment: Node. Build Command: `npm install`. Start Command: `node server.js`.
+3. Environment Variables:
+
+- `MONGO_URI` = your MongoDB URI
+- `JWT_SECRET` = your long random secret
+- `NODE_ENV` = `production`
+- `CLIENT_URL` = `https://<your-frontend-domain>` (temporary value OK)
+
+4. Deploy and copy the backend URL.
+
+Frontend (Static Site):
+
+1. New → Static Site → Connect your repo → Root Directory: `frontend`.
+2. Build Command: `npm run build`. Publish Directory: `dist`.
+3. Environment Variables:
+
+- `VITE_API_BASE` = `<BACKEND_URL>/api` (e.g., `https://proctered-mern-backend.onrender.com/api`)
+
+4. Deploy and copy the frontend URL. Update the backend `CLIENT_URL` to this URL and redeploy backend.
+
 ### Frontend Deployment (e.g., Vercel, Netlify, Render)
 
 1. **Set the environment variable** in your deployment platform:
