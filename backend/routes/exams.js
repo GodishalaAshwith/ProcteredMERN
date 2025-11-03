@@ -47,7 +47,7 @@ router.get(
       const now = new Date();
       // fetch student profile
       const student = await User.findById(req.user.id).select(
-        "college year department section role"
+        "college year department section semester role"
       );
       if (!student) return res.status(404).json({ message: "User not found" });
 
@@ -87,6 +87,14 @@ router.get(
         // section (number array)
         if (Array.isArray(c.section) && c.section.length > 0) {
           if (student.section == null || !c.section.includes(student.section))
+            return false;
+        }
+        // semester (number array)
+        if (Array.isArray(c.semester) && c.semester.length > 0) {
+          if (
+            student.semester == null ||
+            !c.semester.includes(student.semester)
+          )
             return false;
         }
         return true;

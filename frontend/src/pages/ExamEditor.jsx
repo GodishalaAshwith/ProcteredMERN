@@ -270,7 +270,13 @@ const ExamEditor = () => {
     durationMins: 60,
     windowStart: "",
     windowEnd: "",
-    assignment: { college: "", year: [], department: [], section: [] },
+    assignment: {
+      college: "",
+      year: [],
+      department: [],
+      section: [],
+      semester: [],
+    },
     questions: [emptyQuestion()],
   });
 
@@ -315,6 +321,7 @@ const ExamEditor = () => {
           year: data.assignmentCriteria?.year || [],
           department: data.assignmentCriteria?.department || [],
           section: data.assignmentCriteria?.section || [],
+          semester: data.assignmentCriteria?.semester || [],
         },
         questions:
           data.questions && data.questions.length > 0
@@ -450,6 +457,7 @@ const ExamEditor = () => {
           year: form.assignment.year,
           department: form.assignment.department,
           section: form.assignment.section,
+          semester: form.assignment.semester,
         },
       };
 
@@ -545,6 +553,7 @@ Q: Explain Newton's second law
 Points: 5`;
 
   const years = [1, 2, 3, 4, 5, 6, 7, 8];
+  const semesters = [1, 2, 3, 4, 5, 6, 7, 8];
   const sections = [1, 2, 3, 4, 5];
 
   return (
@@ -752,6 +761,45 @@ Points: 5`;
                   </label>
                 ))}
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Semester
+              </label>
+              <div className="flex flex-wrap gap-3">
+                {semesters.map((s) => (
+                  <label
+                    key={s}
+                    className={`inline-flex items-center gap-2 px-2 py-1 rounded border text-sm ${
+                      form.assignment.semester.includes(s)
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                        : "bg-slate-50 border-slate-200 text-slate-700"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="accent-emerald-600"
+                      checked={form.assignment.semester.includes(s)}
+                      onChange={(e) => {
+                        const set = new Set(form.assignment.semester);
+                        e.target.checked ? set.add(s) : set.delete(s);
+                        setForm({
+                          ...form,
+                          assignment: {
+                            ...form.assignment,
+                            semester: Array.from(set),
+                          },
+                        });
+                      }}
+                    />
+                    <span>{s}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="help mt-1 text-xs text-slate-500">
+                If you specify semester(s), only students in those semesters
+                will see the exam.
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">

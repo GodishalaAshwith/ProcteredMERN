@@ -30,6 +30,8 @@ const ExamSchema = new mongoose.Schema(
       year: [{ type: Number, min: 1, max: 8 }],
       department: [{ type: String }],
       section: [{ type: Number, min: 1, max: 5 }],
+      // Optional: target specific semesters; when specified, students must match
+      semester: [{ type: Number, min: 1, max: 16 }],
     },
     // Faculty-granted per-student retake tokens for this exam
     // Each entry gives a student N additional starts after a submission/invalid
