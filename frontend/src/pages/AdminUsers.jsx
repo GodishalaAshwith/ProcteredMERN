@@ -54,6 +54,10 @@ const AdminUsers = () => {
       Object.keys(params).forEach((k) => {
         if (params[k] === "") delete params[k];
       });
+      // Force faculty role when 'Faculty' view is selected
+      if (view === "faculty") {
+        params.role = "faculty";
+      }
       let data;
       if (view === "students") {
         const res = await listStudents(params, token);
@@ -139,15 +143,19 @@ const AdminUsers = () => {
         >
           Students
         </button>
+        <button
+          type="button"
+          className={`px-3 py-2 rounded border ${
+            view === "faculty"
+              ? "bg-emerald-600 text-slate-900 border-emerald-700"
+              : "bg-white text-slate-800 border-slate-300"
+          }`}
+          onClick={() => setView("faculty")}
+        >
+          Faculty
+        </button>
       </div>
-      <select
-        value={filters.role}
-        onChange={(e) => setFilters({ ...filters, role: e.target.value })}
-        className="border rounded px-3 py-2"
-      >
-        <option value="student">Students</option>
-        <option value="faculty">Faculty</option>
-      </select>
+
       <input
         type="text"
         placeholder="Search name/email/rollno"
