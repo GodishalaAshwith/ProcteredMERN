@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const authMiddleware = require("../middleware/authMiddleware");
+const Student = require("../models/Student");
 
 const router = express.Router();
 
@@ -45,12 +46,78 @@ router.post("/login", async (req, res) => {
     const query = identifier.includes("@")
       ? { email: identifier }
       : { rollno: identifier };
-    const user = await User.findOne(query);
-    if (!user) return res.status(400).json({ message: "Invalid credentials" });
+    let user = await User.findOne(query);
+    // Fallback: If no user account yet, try to authenticate against Student roster
+    if (!user) {
+      // Try to find a Student by rollno or email
+      const student = await Student.findOne(
+        identifier.includes("@")
+          ? { email: identifier }
+          : { rollno: identifier }
+      );
+      if (!student) {
+        return res.status(400).json({ message: "Invalid credentials" });
+      }
+      // Default policy: student initial password is their roll number
+      if (String(password) !== String(student.rollno)) {
+        return res.status(400).json({ message: "Invalid credentials" });
+      }
+      // Auto-provision a User account from Student roster (required by rest of app)
+      const synthesizedEmail =
+        student.email && String(student.email).trim().length > 0
+          ? student.email
+          : `${student.rollno}@students.local`;
+      // Avoid duplicate key race: check again by rollno/email
+      user = await User.findOne({
+        $or: [{ rollno: student.rollno }, { email: synthesizedEmail }],
+      });
+      if (!user) {
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(String(student.rollno), salt);
+        try {
+          user = await User.create({
+            name: student.name,
+            email: synthesizedEmail,
+            rollno: student.rollno,
+            password: hashedPassword,
+            role: "student",
+            college: student.college,
+            year: student.year,
+            department: student.department,
+            section: student.section,
+            semester: student.semester,
+          });
+        } catch (e) {
+          // If duplicate key due to a race, fetch existing
+          if (e && e.code === 11000) {
+            user = await User.findOne({
+              $or: [{ rollno: student.rollno }, { email: synthesizedEmail }],
+            });
+          } else {
+            throw e;
+          }
+        }
+      }
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch)
       return res.status(400).json({ message: "Invalid credentials" });
+
+    // If this is a student account, ensure they exist in Student roster
+    if (user.role === "student") {
+      const rosterOk = await Student.exists({
+        $or: [
+          user.rollno ? { rollno: user.rollno } : null,
+          user.email ? { email: user.email } : null,
+        ].filter(Boolean),
+      });
+      if (!rosterOk) {
+        return res
+          .status(403)
+          .json({ message: "Student not found in roster. Contact admin." });
+      }
+    }
 
     const token = jwt.sign(
       { id: user._id, role: user.role },

@@ -70,8 +70,9 @@ const AdminStudentsUpload = () => {
       <p className="text-gray-600 mb-6">
         Upload a CSV or Excel file with the following columns: <b>Sno</b>,{" "}
         <b>Rollno</b>, <b>Name</b>, <b>Dept</b>, <b>College</b>, <b>Section</b>,{" "}
-        <b>Semester</b>. The initial username and password will both be the
-        student's roll number.
+        <b>Semester</b>. This uploads the roster to the Student directory only.
+        Accounts/credentials are not created here; students can register
+        themselves using their details.
       </p>
 
       <div className="mb-4">

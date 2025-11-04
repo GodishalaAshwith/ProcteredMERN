@@ -1,6 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
+const Student = require("../models/Student");
 const auth = require("../middleware/authMiddleware");
 const multer = require("multer");
 const XLSX = require("xlsx");
@@ -207,6 +208,62 @@ router.post(
 
 module.exports = router;
 
+// List Student roster (directory)
+// GET /api/admin/students?search=&department=&college=&section=&year=&semester=&limit=&page=&sort=
+router.get("/students", auth, auth.requireRole("admin"), async (req, res) => {
+  try {
+    const {
+      search,
+      department,
+      college,
+      section,
+      year,
+      semester,
+      limit = 200,
+      page = 1,
+      sort = "-createdAt",
+    } = req.query;
+
+    const q = {};
+    if (department) q.department = department;
+    if (college) q.college = college;
+    if (section !== undefined) {
+      const n = Number(section);
+      if (!Number.isNaN(n)) q.section = n;
+    }
+    if (year !== undefined) {
+      const n = Number(year);
+      if (!Number.isNaN(n)) q.year = n;
+    }
+    if (semester !== undefined) {
+      const n = Number(semester);
+      if (!Number.isNaN(n)) q.semester = n;
+    }
+    if (search) {
+      const s = String(search).trim();
+      q.$or = [
+        { name: { $regex: s, $options: "i" } },
+        { email: { $regex: s, $options: "i" } },
+        { rollno: { $regex: s, $options: "i" } },
+      ];
+    }
+
+    const lim = Math.max(1, Math.min(500, Number(limit) || 200));
+    const pg = Math.max(1, Number(page) || 1);
+    const skip = (pg - 1) * lim;
+
+    const [items, total] = await Promise.all([
+      Student.find(q).sort(sort).skip(skip).limit(lim),
+      Student.countDocuments(q),
+    ]);
+
+    return res.json({ items, total, page: pg, limit: lim });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Admin-only: Bulk upload students via CSV/XLSX
 // POST /api/admin/students/upload (form-data: file)
 router.post(
@@ -250,36 +307,29 @@ router.post(
 
         if (!rollno || !name) {
           skipped++;
-          errors.push({ row: i + 2, error: "Missing rollno or name" }); // +2 accounting header and 1-index
+          errors.push({ row: i + 2, error: "Missing rollno or name" });
           continue;
         }
 
-        // Prepare fields
-        const email = `${rollno}@students.local`;
+        // Prepare derived fields
         const section = sectionRaw ? Number(sectionRaw) : undefined;
         const semester = semRaw ? Number(semRaw) : undefined;
         const year = semester
           ? Math.max(1, Math.min(8, Math.ceil(semester / 2)))
           : undefined;
 
-        // Skip if user already exists by rollno or email
-        const existing = await User.findOne({ $or: [{ rollno }, { email }] });
+        // Skip if roster already has this student by rollno
+        const existing = await Student.findOne({ rollno });
         if (existing) {
           skipped++;
           continue;
         }
 
-        // Default password is roll number
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(rollno, salt);
-
         try {
-          await User.create({
-            name,
-            email,
+          await Student.create({
             rollno,
-            password: hashedPassword,
-            role: "student",
+            name,
+            email: `${rollno}@students.local`,
             college: college || undefined,
             year,
             department: dept || undefined,

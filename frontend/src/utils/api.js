@@ -76,6 +76,10 @@ export const resetUserPassword = (id, toRollno = true, token) =>
     authHeader(token)
   );
 
+// Admin: list student roster (directory)
+export const listStudents = (params, token) =>
+  API.get("/admin/students", { ...authHeader(token), params });
+
 /** ---------------- FACULTY ---------------- **/
 export const listMyExams = () => API.get("/exams", localAuthHeader());
 export const createExam = (payload) =>

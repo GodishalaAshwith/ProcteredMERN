@@ -5,6 +5,7 @@ import {
   getProctorEvents,
   listAttemptsForExam,
   grantRetake,
+  getExam,
 } from "../utils/api";
 
 const FacultySubmissions = () => {
@@ -15,47 +16,38 @@ const FacultySubmissions = () => {
   const [error, setError] = useState("");
   const [events, setEvents] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [examTitle, setExamTitle] = useState("");
 
-  // For Excel: Dates as Date objects to enable proper formatting in sheet
-  const toExportRowsXLSX = useCallback(() => {
-    return (rows || []).map((a, idx) => ({
-      SNo: idx + 1,
-      AttemptID: a._id,
-      StudentName: a.student?.name || "",
-      StudentEmail: a.student?.email || "",
-      RollNo: a.student?.rollNo || "",
-      Status: a.status,
-      Score: typeof a.score === "number" ? a.score : "",
-      Violations: a.violationsCount ?? 0,
-      StartedAt: a.startedAt ? new Date(a.startedAt) : "",
-      SubmittedAt: a.submittedAt ? new Date(a.submittedAt) : "",
-    }));
-  }, [rows]);
-
-  // For CSV: Dates as ISO strings for readability
-  const toExportRowsCSV = useCallback(() => {
-    return (rows || []).map((a, idx) => ({
-      SNo: idx + 1,
-      AttemptID: a._id,
-      StudentName: a.student?.name || "",
-      StudentEmail: a.student?.email || "",
-      RollNo: a.student?.rollNo || "",
-      Status: a.status,
-      Score: typeof a.score === "number" ? a.score : "",
-      Violations: a.violationsCount ?? 0,
-      StartedAt: a.startedAt ? new Date(a.startedAt).toISOString() : "",
-      SubmittedAt: a.submittedAt ? new Date(a.submittedAt).toISOString() : "",
-    }));
-  }, [rows]);
-
-  const fileStamp = () => {
-    const d = new Date();
-    const pad = (n) => String(n).padStart(2, "0");
-    return (
-      `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_` +
-      `${pad(d.getHours())}${pad(d.getMinutes())}`
-    );
+  // Sanitize exam title to be used safely as a filename (Windows-friendly)
+  const sanitizeFileName = (name) => {
+    if (!name || typeof name !== "string") return "exam";
+    // Replace invalid characters <>:"/\|?* and control chars, trim dots/spaces at end
+    const cleaned = name
+      .replace(/[<>:"/\\|?*]/g, "_")
+      .replace(/[\u0000-\u001F\u007F]/g, "_")
+      .replace(/\s+/g, " ")
+      .trim();
+    // Avoid trailing dots/spaces
+    return cleaned.replace(/[\.\s]+$/g, "").slice(0, 150) || "exam";
   };
+
+  // For Excel export: only Roll number and Marks
+  const toExportRowsXLSX = useCallback(() => {
+    return (rows || []).map((a) => ({
+      RollNo: a.student?.rollNo || "",
+      Marks: typeof a.score === "number" ? a.score : "",
+    }));
+  }, [rows]);
+
+  // For CSV export: only Roll number and Marks
+  const toExportRowsCSV = useCallback(() => {
+    return (rows || []).map((a) => ({
+      RollNo: a.student?.rollNo || "",
+      Marks: typeof a.score === "number" ? a.score : "",
+    }));
+  }, [rows]);
+
+  // (No timestamp needed in filenames per requirement)
 
   const exportXLSX = () => {
     if (!rows?.length) return;
@@ -65,53 +57,17 @@ const FacultySubmissions = () => {
     if (ws["!ref"]) {
       const range = XLSX.utils.decode_range(ws["!ref"]);
       ws["!autofilter"] = { ref: XLSX.utils.encode_range(range) };
-      // Compute column widths (wch) based on content
+      // Compute column widths (wch) based on content (simple heuristic)
       const headers = Object.keys(data[0] || {});
-      const cols = headers.map((h, cidx) => {
-        const headerWidth = String(h).length;
-        let max = headerWidth;
-        for (let r = 0; r < data.length; r++) {
-          const v = data[r][h];
-          let len = 0;
-          if (v == null) len = 0;
-          else if (v instanceof Date) len = 19; // yyyy-mm-dd hh:mm:ss
-          else len = String(v).length;
-          if (len > max) max = len;
-        }
-        // Add padding, cap at a reasonable width
-        const wch = Math.min(max + 2, 40);
-        return { wch };
-      });
+      const cols = headers.map((h) => ({
+        wch: Math.min(String(h).length + 6, 40),
+      }));
       ws["!cols"] = cols;
-
-      // Freeze header row if supported
-      // Some readers ignore this metadata; harmless if not supported
-      ws["!freeze"] = {
-        xSplit: 0,
-        ySplit: 1,
-        topLeftCell: "A2",
-        activePane: "bottomLeft",
-      };
-
-      // Apply date number format to date columns
-      const dateHeaders = new Set(["StartedAt", "SubmittedAt"]);
-      for (let C = range.s.c; C <= range.e.c; ++C) {
-        const headerCell = ws[XLSX.utils.encode_cell({ r: 0, c: C })];
-        const headerText = headerCell?.v;
-        if (dateHeaders.has(headerText)) {
-          for (let R = 1; R <= range.e.r; ++R) {
-            const addr = XLSX.utils.encode_cell({ r: R, c: C });
-            const cell = ws[addr];
-            if (cell && (cell.t === "n" || cell.t === "d")) {
-              cell.z = "yyyy-mm-dd hh:mm:ss";
-            }
-          }
-        }
-      }
     }
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Submissions");
-    XLSX.writeFile(wb, `exam_${examId}_submissions_${fileStamp()}.xlsx`, {
+    const fname = `${sanitizeFileName(examTitle || "exam")}.xlsx`;
+    XLSX.writeFile(wb, fname, {
       bookType: "xlsx",
       compression: true,
     });
@@ -123,7 +79,8 @@ const FacultySubmissions = () => {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Submissions");
-    XLSX.writeFile(wb, `exam_${examId}_submissions_${fileStamp()}.csv`, {
+    const fname = `${sanitizeFileName(examTitle || "exam")}.csv`;
+    XLSX.writeFile(wb, fname, {
       bookType: "csv",
       FS: ",",
     });
@@ -157,7 +114,16 @@ const FacultySubmissions = () => {
       navigate("/");
       return;
     }
+    // Fetch attempts and exam title in parallel
     fetchAttempts();
+    (async () => {
+      try {
+        const { data } = await getExam(examId);
+        setExamTitle(data?.title || "");
+      } catch {
+        setExamTitle("");
+      }
+    })();
   }, [navigate, fetchAttempts]);
 
   const viewEvents = async (attemptId) => {

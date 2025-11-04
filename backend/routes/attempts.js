@@ -337,7 +337,7 @@ router.get(
         .select(
           "studentId status score submittedAt violations createdAt startedAt"
         )
-        .populate("studentId", "name email rollNo")
+        .populate("studentId", "name email rollno")
         .sort({ createdAt: -1 })
         .lean();
 
@@ -351,7 +351,8 @@ router.get(
                 _id: a.studentId._id,
                 name: a.studentId.name,
                 email: a.studentId.email,
-                rollNo: a.studentId.rollNo,
+                // expose roll number consistently as rollNo for frontend
+                rollNo: a.studentId.rollno,
               }
             : null,
         status: a.status,

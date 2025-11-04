@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { listUsers, updateUser, resetUserPassword } from "../utils/api";
+import {
+  listUsers,
+  listStudents,
+  updateUser,
+  resetUserPassword,
+} from "../utils/api";
 
 const initialFilters = {
   role: "student",
@@ -17,6 +22,7 @@ const AdminUsers = () => {
   const token = useMemo(() => localStorage.getItem("token"), []);
 
   const [filters, setFilters] = useState(initialFilters);
+  const [view, setView] = useState("accounts"); // 'accounts' | 'students'
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -37,7 +43,7 @@ const AdminUsers = () => {
     }
     fetchRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.role]);
+  }, [filters.role, view]);
 
   const fetchRows = async () => {
     setLoading(true);
@@ -48,7 +54,14 @@ const AdminUsers = () => {
       Object.keys(params).forEach((k) => {
         if (params[k] === "") delete params[k];
       });
-      const { data } = await listUsers(params, token);
+      let data;
+      if (view === "students") {
+        const res = await listStudents(params, token);
+        data = res.data;
+      } else {
+        const res = await listUsers(params, token);
+        data = res.data;
+      }
       setRows(data.items || []);
     } catch (e) {
       setError(
@@ -103,6 +116,30 @@ const AdminUsers = () => {
 
   const fields = (
     <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+      <div className="md:col-span-2 flex items-center gap-2">
+        <button
+          type="button"
+          className={`px-3 py-2 rounded border ${
+            view === "accounts"
+              ? "bg-emerald-600 text-slate-900 border-emerald-700"
+              : "bg-white text-slate-800 border-slate-300"
+          }`}
+          onClick={() => setView("accounts")}
+        >
+          Accounts
+        </button>
+        <button
+          type="button"
+          className={`px-3 py-2 rounded border ${
+            view === "students"
+              ? "bg-emerald-600 text-slate-900 border-emerald-700"
+              : "bg-white text-slate-800 border-slate-300"
+          }`}
+          onClick={() => setView("students")}
+        >
+          Students
+        </button>
+      </div>
       <select
         value={filters.role}
         onChange={(e) => setFilters({ ...filters, role: e.target.value })}
@@ -179,6 +216,7 @@ const AdminUsers = () => {
 
   const renderEditModal = () => {
     if (!editing) return null;
+    if (view === "students") return null; // no edit modal for roster entries yet
     const isStudent = editing.role === "student";
     return (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
@@ -299,10 +337,11 @@ const AdminUsers = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-2">Manage Users</h1>
+      <h1 className="text-3xl font-bold mb-2">Admin Directory</h1>
       <p className="text-gray-600 mb-4">
-        View, filter, and edit{" "}
-        {filters.role === "student" ? "students" : "faculty"}.
+        {view === "accounts"
+          ? "View and manage user accounts (students/faculty)."
+          : "View uploaded student roster (non-auth records)."}
       </p>
 
       <div className="bg-white rounded shadow p-4 mb-4">{fields}</div>
@@ -318,52 +357,67 @@ const AdminUsers = () => {
               <tr>
                 <th className="text-left p-3">Name</th>
                 <th className="text-left p-3">Email</th>
-                {filters.role === "student" && (
+                {(view === "accounts" && filters.role === "student") ||
+                view === "students" ? (
                   <th className="text-left p-3">Roll No</th>
-                )}
+                ) : null}
                 <th className="text-left p-3">Dept</th>
                 <th className="text-left p-3">College</th>
-                {filters.role === "student" && (
+                {(view === "accounts" && filters.role === "student") ||
+                view === "students" ? (
                   <th className="text-left p-3">Sec</th>
-                )}
-                {filters.role === "student" && (
+                ) : null}
+                {(view === "accounts" && filters.role === "student") ||
+                view === "students" ? (
                   <th className="text-left p-3">Year</th>
-                )}
-                {filters.role === "student" && (
+                ) : null}
+                {(view === "accounts" && filters.role === "student") ||
+                view === "students" ? (
                   <th className="text-left p-3">Sem</th>
+                ) : null}
+                {view === "accounts" && (
+                  <th className="text-left p-3">Actions</th>
                 )}
-                <th className="text-left p-3">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r._id || r.id} className="border-t">
-                  <td className="p-3">{r.name}</td>
-                  <td className="p-3">{r.email}</td>
-                  {filters.role === "student" && (
-                    <td className="p-3">{r.rollno}</td>
-                  )}
-                  <td className="p-3">{r.department || "-"}</td>
-                  <td className="p-3">{r.college || "-"}</td>
-                  {filters.role === "student" && (
-                    <td className="p-3">{r.section ?? "-"}</td>
-                  )}
-                  {filters.role === "student" && (
-                    <td className="p-3">{r.year ?? "-"}</td>
-                  )}
-                  {filters.role === "student" && (
-                    <td className="p-3">{r.semester ?? "-"}</td>
-                  )}
-                  <td className="p-3">
-                    <button
-                      className="px-3 py-1 rounded bg-slate-200"
-                      onClick={() => setEditing(r)}
-                    >
-                      Edit
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {rows.map((r) => {
+                const isRoster = view === "students";
+                return (
+                  <tr key={r._id || r.id} className="border-t">
+                    <td className="p-3">{r.name}</td>
+                    <td className="p-3">{r.email}</td>
+                    {((view === "accounts" && filters.role === "student") ||
+                      view === "students") && (
+                      <td className="p-3">{r.rollno}</td>
+                    )}
+                    <td className="p-3">{r.department || "-"}</td>
+                    <td className="p-3">{r.college || "-"}</td>
+                    {((view === "accounts" && filters.role === "student") ||
+                      view === "students") && (
+                      <td className="p-3">{r.section ?? "-"}</td>
+                    )}
+                    {((view === "accounts" && filters.role === "student") ||
+                      view === "students") && (
+                      <td className="p-3">{r.year ?? "-"}</td>
+                    )}
+                    {((view === "accounts" && filters.role === "student") ||
+                      view === "students") && (
+                      <td className="p-3">{r.semester ?? "-"}</td>
+                    )}
+                    {view === "accounts" && (
+                      <td className="p-3">
+                        <button
+                          className="px-3 py-1 rounded bg-slate-200"
+                          onClick={() => setEditing(r)}
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
