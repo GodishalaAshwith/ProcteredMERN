@@ -21,6 +21,7 @@ const Login = () => {
     email: "",
     password: "",
   });
+  const [mode, setMode] = useState("student"); // "student" | "user"
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -45,7 +46,9 @@ const Login = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(config.getApiUrl("/api/auth/login"), {
+      const endpoint =
+        mode === "student" ? "/api/auth/login-student" : "/api/auth/login-user";
+      const response = await fetch(config.getApiUrl(endpoint), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -75,9 +78,33 @@ const Login = () => {
         className="bg-white p-10 rounded-xl shadow-xl max-w-md w-full text-center border border-slate-200"
         data-aos="fade-up"
       >
-        <h2 className="text-3xl sm:text-4xl font-bold text-emerald-700 mb-6">
+        <h2 className="text-3xl sm:text-4xl font-bold text-emerald-700 mb-3">
           Login
         </h2>
+        <div className="flex mb-6 rounded-lg overflow-hidden border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setMode("student")}
+            className={`flex-1 py-2 text-sm font-medium ${
+              mode === "student"
+                ? "bg-emerald-600 text-slate-900"
+                : "bg-white text-slate-700"
+            }`}
+          >
+            Student Login
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("user")}
+            className={`flex-1 py-2 text-sm font-medium ${
+              mode === "user"
+                ? "bg-emerald-600 text-slate-900"
+                : "bg-white text-slate-700"
+            }`}
+          >
+            User Login
+          </button>
+        </div>
         {error && (
           <div
             className="bg-red-50 border border-red-200 text-red-700 text-left px-3 py-2 rounded mb-4"
@@ -94,7 +121,9 @@ const Login = () => {
           <input
             type="text"
             name="email"
-            placeholder="Email or Roll Number"
+            placeholder={
+              mode === "student" ? "Email or Roll Number" : "Email or Username"
+            }
             value={formData.email}
             onChange={handleChange}
             className="w-full px-4 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"

@@ -33,9 +33,17 @@ const AttemptSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    // Dynamic reference to student principal: can be a User (legacy) or Student (new)
+    studentRef: {
+      type: String,
+      enum: ["User", "Student"],
+      default: "User",
+      required: true,
+      index: true,
+    },
     studentId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      refPath: "studentRef",
       required: true,
       index: true,
     },
@@ -55,6 +63,9 @@ const AttemptSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-AttemptSchema.index({ examId: 1, studentId: 1 }, { unique: false });
+AttemptSchema.index(
+  { examId: 1, studentId: 1, studentRef: 1 },
+  { unique: false }
+);
 
 module.exports = mongoose.model("Attempt", AttemptSchema);

@@ -4,6 +4,7 @@ const Exam = require("../models/Exam");
 const Attempt = require("../models/Attempt");
 const ProctoringEvent = require("../models/ProctoringEvent");
 const User = require("../models/User");
+const Student = require("../models/Student");
 
 const router = express.Router();
 
@@ -47,10 +48,28 @@ router.post("/start", auth, auth.requireRole("student"), async (req, res) => {
   try {
     const { examId } = req.body || {};
     if (!examId) return res.status(400).json({ message: "examId is required" });
-
-    const student = await User.findById(req.user.id).select(
-      "college year department section"
-    );
+    // Load student academic profile from roster when principal is Student; fallback to Users for legacy
+    let student = null;
+    if (req.user.model === "Student") {
+      student = await Student.findById(req.user.id).select(
+        "college year department section rollno email"
+      );
+      if (!student && (req.user.rollno || req.user.email)) {
+        student = await Student.findOne({
+          $or: [
+            req.user.rollno ? { rollno: req.user.rollno } : null,
+            req.user.email ? { email: req.user.email } : null,
+          ].filter(Boolean),
+        }).select("college year department section rollno email");
+      }
+    } else {
+      const authUser = await User.findById(req.user.id).select("rollno email");
+      student = await Student.findOne(
+        authUser?.rollno
+          ? { rollno: authUser.rollno }
+          : { email: authUser?.email }
+      ).select("college year department section");
+    }
     const exam = await Exam.findById(examId);
     if (!exam) return res.status(404).json({ message: "Exam not found" });
 
@@ -68,7 +87,28 @@ router.post("/start", auth, auth.requireRole("student"), async (req, res) => {
     let attempt = await Attempt.findOne({
       examId,
       studentId: req.user.id,
+      studentRef: req.user.model || "User",
     }).sort({ createdAt: -1 });
+    // Legacy fallback: if none found and student is using Student principal, check prior attempts under User principal
+    if (!attempt && (req.user.model || "User") === "Student") {
+      // Find a matching User by rollno/email to link legacy attempts
+      const s = await Student.findById(req.user.id).select("rollno email");
+      if (s) {
+        const maybeUser = await User.findOne({
+          $or: [
+            s.rollno ? { rollno: s.rollno } : null,
+            s.email ? { email: s.email } : null,
+          ].filter(Boolean),
+        }).select("_id");
+        if (maybeUser) {
+          attempt = await Attempt.findOne({
+            examId,
+            studentId: maybeUser._id,
+            $or: [{ studentRef: "User" }, { studentRef: { $exists: false } }],
+          }).sort({ createdAt: -1 });
+        }
+      }
+    }
 
     // If a prior in-progress attempt exists but its time already elapsed, finalize and block restart
     if (attempt && attempt.status === "in-progress") {
@@ -102,6 +142,7 @@ router.post("/start", auth, auth.requireRole("student"), async (req, res) => {
       attempt = await Attempt.create({
         examId,
         studentId: req.user.id,
+        studentRef: req.user.model || "User",
         startedAt: now,
         status: "in-progress",
       });
@@ -130,6 +171,7 @@ router.post("/start", auth, auth.requireRole("student"), async (req, res) => {
       attempt = await Attempt.create({
         examId,
         studentId: req.user.id,
+        studentRef: req.user.model || "User",
         startedAt: now,
         status: "in-progress",
       });
@@ -164,6 +206,7 @@ router.post("/save", auth, auth.requireRole("student"), async (req, res) => {
     const attempt = await Attempt.findOne({
       _id: attemptId,
       studentId: req.user.id,
+      studentRef: req.user.model || "User",
     });
     if (!attempt) return res.status(404).json({ message: "Attempt not found" });
     if (attempt.status !== "in-progress") {
@@ -248,6 +291,7 @@ router.post("/submit", auth, auth.requireRole("student"), async (req, res) => {
     const attempt = await Attempt.findOne({
       _id: attemptId,
       studentId: req.user.id,
+      studentRef: req.user.model || "User",
     });
     if (!attempt) return res.status(404).json({ message: "Attempt not found" });
     if (attempt.status !== "in-progress") {
@@ -281,6 +325,7 @@ router.get("/:id", auth, auth.requireRole("student"), async (req, res) => {
     const attempt = await Attempt.findOne({
       _id: req.params.id,
       studentId: req.user.id,
+      studentRef: req.user.model || "User",
     });
     if (!attempt) return res.status(404).json({ message: "Attempt not found" });
     return res.json(attempt);
@@ -300,6 +345,7 @@ router.post(
       const attempt = await Attempt.findOne({
         _id: req.params.id,
         studentId: req.user.id,
+        studentRef: req.user.model || "User",
       });
       if (!attempt)
         return res.status(404).json({ message: "Attempt not found" });
@@ -335,9 +381,13 @@ router.get(
 
       const attempts = await Attempt.find({ examId: exam._id })
         .select(
-          "studentId status score submittedAt violations createdAt startedAt"
+          "studentId studentRef status score submittedAt violations createdAt startedAt"
         )
-        .populate("studentId", "name email rollno")
+        .populate({
+          path: "studentId",
+          select: "name email rollno",
+          strictPopulate: false,
+        })
         .sort({ createdAt: -1 })
         .lean();
 
@@ -351,7 +401,6 @@ router.get(
                 _id: a.studentId._id,
                 name: a.studentId.name,
                 email: a.studentId.email,
-                // expose roll number consistently as rollNo for frontend
                 rollNo: a.studentId.rollno,
               }
             : null,
