@@ -15,10 +15,7 @@ const normalizeBase = (base) => {
  * Example for Vite: VITE_API_BASE=https://your-backend.onrender.com
  * Example for CRA:  REACT_APP_API_BASE=https://your-backend.onrender.com
  */
-const envBase =
-  import.meta.env?.VITE_API_BASE_URL ||
-  process.env.REACT_APP_API_BASE ||
-  "http://localhost:5000";
+const envBase = import.meta.env?.VITE_API_BASE_URL || "http://localhost:5000";
 
 const API_BASE = normalizeBase(envBase);
 
@@ -73,7 +70,11 @@ export const updateUser = (id, payload, token) =>
   API.patch(`/admin/users/${id}`, payload, authHeader(token));
 
 export const resetUserPassword = (id, toRollno = true, token) =>
-  API.post(`/admin/users/${id}/reset-password`, { toRollno }, authHeader(token));
+  API.post(
+    `/admin/users/${id}/reset-password`,
+    { toRollno },
+    authHeader(token)
+  );
 
 /** ---------------- FACULTY ---------------- **/
 export const listMyExams = () => API.get("/exams", localAuthHeader());

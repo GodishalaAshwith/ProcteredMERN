@@ -33,16 +33,16 @@ const Navbar = () => {
 
   return (
     <nav className="bg-slate-900 text-slate-100 border-b border-slate-800 sticky top-0 z-40">
-      <div className="container mx-auto px-4 py-3">
-        <div className="flex items-center justify-between">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="h-14 md:h-16 flex items-center justify-between">
           <Link
             to="/"
-            className="text-2xl sm:text-3xl font-bold tracking-wide hover:text-emerald-400 transition-colors"
+            className="text-2xl sm:text-3xl font-bold tracking-wide hover:text-emerald-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded"
           >
             ProcTesting
           </Link>
           <button
-            className="md:hidden inline-flex items-center justify-center p-2 rounded-lg hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="md:hidden inline-flex items-center justify-center p-2 rounded-lg hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
             aria-label="Toggle menu"
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
@@ -71,13 +71,13 @@ const Navbar = () => {
           <div className="hidden md:flex items-center gap-2 lg:gap-3">
             <Link
               to="/"
-              className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+              className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
             >
               Home
             </Link>
             <Link
               to="/contactus"
-              className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+              className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
             >
               Contact
             </Link>
@@ -86,14 +86,14 @@ const Navbar = () => {
               <>
                 <Link
                   to="/dashboard"
-                  className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                  className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                 >
                   Dashboard
                 </Link>
                 {user.role === "faculty" && (
                   <Link
                     to="/faculty/exams"
-                    className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                    className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                   >
                     Exams
                   </Link>
@@ -102,13 +102,13 @@ const Navbar = () => {
                   <>
                     <Link
                       to="/exams"
-                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                     >
                       Exams
                     </Link>
                     <Link
                       to="/student/profile"
-                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                     >
                       Profile
                     </Link>
@@ -118,19 +118,19 @@ const Navbar = () => {
                   <>
                     <Link
                       to="/admin/faculty"
-                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                     >
                       Faculty
                     </Link>
                     <Link
                       to="/admin/users"
-                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                     >
                       Users
                     </Link>
                     <Link
                       to="/admin/students/upload"
-                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                     >
                       Students
                     </Link>
@@ -138,7 +138,7 @@ const Navbar = () => {
                 )}
                 <button
                   onClick={handleLogout}
-                  className="ml-1 bg-emerald-600 hover:bg-emerald-500 text-slate-900 font-semibold px-3 py-2 rounded-lg transition-colors"
+                  className="ml-1 bg-emerald-600 hover:bg-emerald-500 text-slate-900 font-semibold px-3 py-2 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                 >
                   Logout
                 </button>
@@ -147,13 +147,13 @@ const Navbar = () => {
               <>
                 <Link
                   to="/login"
-                  className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                  className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                 >
                   Login
                 </Link>
                 <Link
                   to="/register"
-                  className="px-3 py-2 rounded-lg bg-emerald-600 text-slate-900 font-semibold hover:bg-emerald-500 transition-colors"
+                  className="px-3 py-2 rounded-lg bg-emerald-600 text-slate-900 font-semibold hover:bg-emerald-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                 >
                   Register
                 </Link>
@@ -168,7 +168,7 @@ const Navbar = () => {
             open ? "max-h-[480px] opacity-100" : "max-h-0 opacity-0"
           } overflow-hidden`}
         >
-          <div className="pt-3 flex flex-col gap-1">
+          <div className="pt-3 pb-3 flex flex-col gap-1">
             <Link
               to="/"
               onClick={() => setOpen(false)}
