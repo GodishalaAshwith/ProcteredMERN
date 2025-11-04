@@ -28,4 +28,6 @@ const UserSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("User", UserSchema);
+// Store faculty/teachers in the 'teachers' collection while keeping the model name 'User'
+// to avoid widespread code changes. This only changes the underlying MongoDB collection name.
+module.exports = mongoose.model("User", UserSchema, "teachers");

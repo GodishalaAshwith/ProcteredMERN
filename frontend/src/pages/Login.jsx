@@ -102,7 +102,7 @@ const Login = () => {
                 : "bg-white text-slate-700"
             }`}
           >
-            User Login
+            Faculty Login
           </button>
         </div>
         {error && (
