@@ -16,7 +16,7 @@ const normalizeBase = (base) => {
  * Example for CRA:  REACT_APP_API_BASE=https://your-backend.onrender.com
  */
 const envBase =
-  import.meta.env?.VITE_API_BASE ||
+  import.meta.env?.VITE_API_BASE_URL ||
   process.env.REACT_APP_API_BASE ||
   "http://localhost:5000";
 
