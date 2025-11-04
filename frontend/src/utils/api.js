@@ -98,8 +98,12 @@ export const startAttempt = (examId) =>
   API.post("/attempts/start", { examId }, localAuthHeader());
 export const saveAttempt = (attemptId, answers) =>
   API.post("/attempts/save", { attemptId, answers }, localAuthHeader());
-export const submitAttempt = (attemptId) =>
-  API.post("/attempts/submit", { attemptId }, localAuthHeader());
+export const submitAttempt = (attemptId, answers) =>
+  API.post(
+    "/attempts/submit",
+    answers ? { attemptId, answers } : { attemptId },
+    localAuthHeader()
+  );
 export const getAttempt = (attemptId) =>
   API.get(`/attempts/${attemptId}`, localAuthHeader());
 export const logProctorEvent = (attemptId, type, meta) =>

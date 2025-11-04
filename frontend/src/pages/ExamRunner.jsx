@@ -97,7 +97,18 @@ const ExamRunner = () => {
       isSubmittingRef.current = true;
 
       try {
-        const { data } = await submitAttempt(state.attemptId);
+        // Flush any pending autosave so latest answers are persisted before submit
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        const payload = Object.entries(answersRef.current).map(([k, v]) => ({
+          questionIndex: Number(k),
+          value: v,
+        }));
+        if (payload.length > 0) {
+          try {
+            await saveAttempt(state.attemptId, payload);
+          } catch {}
+        }
+        const { data } = await submitAttempt(state.attemptId, payload);
         setState((s) => ({
           ...s,
           submitted: true,
@@ -138,7 +149,18 @@ const ExamRunner = () => {
     isSubmittingRef.current = true;
 
     try {
-      const { data } = await submitAttempt(state.attemptId);
+      // Flush any pending autosave so latest answers are persisted before submit
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      const payload = Object.entries(answersRef.current).map(([k, v]) => ({
+        questionIndex: Number(k),
+        value: v,
+      }));
+      if (payload.length > 0) {
+        try {
+          await saveAttempt(state.attemptId, payload);
+        } catch {}
+      }
+      const { data } = await submitAttempt(state.attemptId, payload);
       setState((s) => ({
         ...s,
         submitted: true,

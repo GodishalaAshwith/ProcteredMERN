@@ -285,7 +285,7 @@ const scoreAttempt = (attempt, exam) => {
 // POST /api/attempts/submit { attemptId }
 router.post("/submit", auth, auth.requireRole("student"), async (req, res) => {
   try {
-    const { attemptId } = req.body || {};
+    const { attemptId, answers } = req.body || {};
     if (!attemptId)
       return res.status(400).json({ message: "attemptId is required" });
     const attempt = await Attempt.findOne({
@@ -298,6 +298,21 @@ router.post("/submit", auth, auth.requireRole("student"), async (req, res) => {
       return res.status(400).json({ message: "Attempt is not in progress" });
     }
     const exam = await Exam.findById(attempt.examId);
+
+    // If answers are provided in submit payload, merge them in before scoring
+    if (Array.isArray(answers)) {
+      const map = new Map(
+        (attempt.answers || []).map((a) => [a.questionIndex, a])
+      );
+      for (const a of answers) {
+        if (typeof a?.questionIndex !== "number") continue;
+        map.set(a.questionIndex, {
+          questionIndex: a.questionIndex,
+          value: a.value,
+        });
+      }
+      attempt.answers = Array.from(map.values());
+    }
 
     // time cutoff enforcement: allow submit even if late, but do not accept saves elsewhere
     const { total, manualNeeded } = scoreAttempt(attempt, exam);
