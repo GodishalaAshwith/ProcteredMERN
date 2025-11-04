@@ -1,14 +1,13 @@
 // Configuration for the frontend application
-// Hard-coded backend base URL per request
+// Uses environment variable instead of hard-coded backend URL
 
 const config = {
-  // Backend base URL (no trailing /api here; getApiUrl will add it via endpoint)
-  apiBaseUrl: "https://procteredmern.onrender.com",
+  // Backend base URL (set via environment variable)
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000",
 
   // Get the full API URL for a given endpoint
   getApiUrl: (endpoint) => {
     const base = config.apiBaseUrl;
-    // Remove /api suffix if present since we'll add it in the endpoint
     const cleanBase = base.replace(/\/api$/, "");
     return `${cleanBase}${endpoint}`;
   },
