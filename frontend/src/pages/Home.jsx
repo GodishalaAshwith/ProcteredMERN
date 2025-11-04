@@ -136,13 +136,20 @@ const Home = () => {
       </section>
 
       {/* Footer */}
-      <footer
-        className="bg-slate-900 text-slate-100 text-center py-8 relative z-10"
-        data-aos="fade-up"
-        data-aos-anchor-placement="bottom-bottom"
-      >
+      <footer className="bg-slate-900 text-slate-100 text-center py-8 relative z-10">
         <p className="text-lg font-light">
           &copy; 2025 ProcTesting | Secure, fair, and scalable assessments
+        </p>
+        <p className="text-sm text-slate-400 mt-2">
+          Done by{" "}
+          <a
+            href="https://in.linkedin.com/in/ashwithg"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-400 font-medium hover:underline"
+          >
+            Ashwith Godishala
+          </a>
         </p>
       </footer>
     </div>
