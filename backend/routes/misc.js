@@ -1,5 +1,5 @@
 const express = require("express");
-const nodemailer = require("nodemailer");
+const SibApiV3Sdk = require("sib-api-v3-sdk");
 
 const router = express.Router();
 
@@ -18,42 +18,53 @@ router.post("/contact", async (req, res) => {
     if (!emailOk)
       return res.status(400).json({ error: "Please provide a valid email" });
 
-    const host = process.env.SMTP_HOST || "smtp.gmail.com";
-    const port = Number(process.env.SMTP_PORT || 465);
-    const secure =
-      String(process.env.SMTP_SECURE || "true").toLowerCase() === "true";
-    const user = process.env.SMTP_USER;
-    // Allow app password entered with spaces (e.g., from copy-paste) by stripping them
-    const pass = (process.env.SMTP_PASS || "").replace(/\s+/g, "");
-
-    if (!user || !pass) {
-      return res.status(500).json({ error: "Email service is not configured" });
+    const brevoApiKey = process.env.BREVO_API_KEY;
+    if (!brevoApiKey) {
+      return res
+        .status(500)
+        .json({ error: "Email service is not configured (BREVO_API_KEY)" });
     }
 
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure, // true for 465, false for 587
-      auth: { user, pass },
-    });
+    // Configure Brevo client
+    const defaultClient = SibApiV3Sdk.ApiClient.instance;
+    const apiKey = defaultClient.authentications["api-key"];
+    apiKey.apiKey = brevoApiKey;
 
+    const smtpApi = new SibApiV3Sdk.TransactionalEmailsApi();
     const to =
       process.env.CONTACT_RECEIVER || "ashwithgodishala.work@gmail.com";
+    const senderEmail =
+      process.env.BREVO_SENDER_EMAIL ||
+      process.env.SMTP_USER ||
+      "no-reply@example.com";
+    const senderName = process.env.BREVO_SENDER_NAME || "Contact Form";
 
-    const info = await transporter.sendMail({
-      from: `Contact Form <${user}>`,
-      to,
-      replyTo: email,
+    const html = `<p><strong>From:</strong> ${name} &lt;${email}&gt;</p><p>${String(
+      message
+    ).replace(/\n/g, "<br>")}</p>`;
+
+    const payload = {
+      sender: { email: senderEmail, name: senderName },
+      to: [{ email: to }],
+      replyTo: { email, name },
       subject: `New contact message from ${name}`,
-      text: `From: ${name} <${email}>\n\n${message}`,
-      html: `<p><strong>From:</strong> ${name} &lt;${email}&gt;</p><p>${String(
-        message
-      ).replace(/\n/g, "<br>")}</p>`,
-    });
+      htmlContent: html,
+      textContent: `From: ${name} <${email}>\n\n${message}`,
+      headers: {
+        "X-Entity-Ref-ID": `contact-${Date.now()}`,
+      },
+    };
 
-    return res.status(200).json({ ok: true, id: info.messageId });
+    const info = await smtpApi.sendTransacEmail(payload);
+
+    return res.status(200).json({ ok: true, id: info && info.messageId });
   } catch (err) {
-    console.error("/contact error:", err);
+    console.error("/contact error:", {
+      message: err && err.message,
+      code: err && err.code,
+      status: err && err.status,
+      response: err && err.response && err.response.text,
+    });
     return res.status(500).json({ error: "Failed to send message" });
   }
 });

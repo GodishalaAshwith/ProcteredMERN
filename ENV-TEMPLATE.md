@@ -39,11 +39,14 @@ MONGO_URI=mongodb://localhost:27017/proctesting
 #   SMTP_PASS=your_16_char_app_password
 # Recipient for contact messages (defaults to ashwithgodishala.work@gmail.com)
 # CONTACT_RECEIVER=owner@example.com
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=465
-SMTP_SECURE=true
-SMTP_USER=
-SMTP_PASS=
+# Email (Contact Form)
+# Brevo (Sendinblue) Transactional Emails configuration
+# Create an API key in Brevo dashboard and set it here. Do NOT commit real keys.
+# Recipient for contact messages (defaults to ashwithgodishala.work@gmail.com)
+# CONTACT_RECEIVER=owner@example.com
+BREVO_API_KEY=
+BREVO_SENDER_EMAIL=
+BREVO_SENDER_NAME=Contact Form
 # CONTACT_RECEIVER=
 # OR MongoDB Atlas (Cloud)
 # MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/proctesting?retryWrites=true&w=majority
@@ -142,11 +145,11 @@ heroku config:set CLIENT_URL="https://your-frontend.vercel.app"
 heroku config:set NODE_ENV="production"
 ```
 
----
+- `BREVO_API_KEY` = `<your_brevo_api_key>`
+- `BREVO_SENDER_EMAIL` = `no-reply@yourdomain.com` (must be validated in Brevo)
+- `BREVO_SENDER_NAME` = `Contact Form`
 
-## Validation Checklist
-
-### Before Deploying Frontend
+Note: Many hosts block raw SMTP ports. Using Brevo's HTTP API avoids SMTP restrictions and is recommended for reliability.
 
 - [ ] `VITE_API_BASE` includes `/api` at the end
 - [ ] Backend URL is HTTPS (not HTTP) for production
