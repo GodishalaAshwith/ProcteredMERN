@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AOS from "aos";
 import "aos/dist/aos.css";
@@ -13,6 +13,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const token = useMemo(() => localStorage.getItem("token"), []);
+  const userRef = useRef(null);
 
   // Role-specific data
   const [studentStats, setStudentStats] = useState({
@@ -47,6 +48,7 @@ const Dashboard = () => {
     }
     const u = JSON.parse(storedUser);
     setUser(u);
+    userRef.current = u;
     fetchRoleData(u).finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
@@ -119,7 +121,9 @@ const Dashboard = () => {
         }
         setFacultyStats({ exams: examsCount, inProgress });
       } else if (u.role === "admin") {
-        const { data } = await listFaculty(token || "");
+        // read latest token from storage to avoid stale memo when switching users
+        const latestToken = localStorage.getItem("token") || token || "";
+        const { data } = await listFaculty(latestToken);
         setAdminStats({ facultyCount: data.length, latest: data.slice(0, 5) });
       }
     } catch (e) {
@@ -130,6 +134,38 @@ const Dashboard = () => {
       );
     }
   };
+
+  // Refetch when window regains focus or tab becomes visible
+  useEffect(() => {
+    const refetch = () => {
+      const u = userRef.current;
+      if (u) fetchRoleData(u);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refetch();
+    };
+    window.addEventListener("focus", refetch);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", refetch);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+    // fetchRoleData is stable across renders; listeners only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Light polling to keep counts fresh while user is on dashboard
+  useEffect(() => {
+    if (!user) return;
+    userRef.current = user;
+    const intervalMs = 15000; // 15s gentle polling
+    const id = setInterval(() => {
+      const u = userRef.current;
+      if (u) fetchRoleData(u);
+    }, intervalMs);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   return (
     <div className="bg-slate-50 font-sans min-h-[70vh] py-10">
@@ -412,7 +448,7 @@ function StudentCurrentExam({ exam }) {
   const now = new Date();
   const beforeStart = s && now < s;
   const afterEnd = ed && now > ed;
-  const withinWindow = s && ed && now >= s && now <= ed;
+  // const withinWindow = s && ed && now >= s && now <= ed; // not currently used
 
   useEffect(() => {
     if (!beforeStart || !s) {
