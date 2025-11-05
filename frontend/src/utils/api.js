@@ -120,3 +120,6 @@ export const grantRetake = (examId, studentId, count = 1) =>
     { studentId, count },
     localAuthHeader()
   );
+
+/** ---------------- CONTACT ---------------- **/
+export const sendContactMessage = (payload) => API.post(`/contact`, payload);

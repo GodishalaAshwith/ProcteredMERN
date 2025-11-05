@@ -28,6 +28,23 @@ VITE_API_BASE=https://your-backend-app.onrender.com/api
 # MongoDB Connection String (Local)
 MONGO_URI=mongodb://localhost:27017/proctesting
 
+
+# Email (Contact Form)
+# SMTP configuration for sending emails from the backend (Nodemailer)
+# For Gmail, create an App Password (recommended) and use:
+#   SMTP_HOST=smtp.gmail.com
+#   SMTP_PORT=465
+#   SMTP_SECURE=true
+#   SMTP_USER=your.address@gmail.com
+#   SMTP_PASS=your_16_char_app_password
+# Recipient for contact messages (defaults to ashwithgodishala.work@gmail.com)
+# CONTACT_RECEIVER=owner@example.com
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=
+SMTP_PASS=
+# CONTACT_RECEIVER=
 # OR MongoDB Atlas (Cloud)
 # MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/proctesting?retryWrites=true&w=majority
 
