@@ -91,12 +91,20 @@ const Navbar = () => {
                   Dashboard
                 </Link>
                 {user.role === "faculty" && (
-                  <Link
-                    to="/faculty/exams"
-                    className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                  >
-                    Exams
-                  </Link>
+                  <>
+                    <Link
+                      to="/faculty/exams"
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                    >
+                      Exams
+                    </Link>
+                    <Link
+                      to="/faculty/profile"
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                    >
+                      Profile
+                    </Link>
+                  </>
                 )}
                 {user.role === "student" && (
                   <>
@@ -193,13 +201,22 @@ const Navbar = () => {
                   Dashboard
                 </Link>
                 {user.role === "faculty" && (
-                  <Link
-                    to="/faculty/exams"
-                    onClick={() => setOpen(false)}
-                    className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
-                  >
-                    Exams
-                  </Link>
+                  <>
+                    <Link
+                      to="/faculty/exams"
+                      onClick={() => setOpen(false)}
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                    >
+                      Exams
+                    </Link>
+                    <Link
+                      to="/faculty/profile"
+                      onClick={() => setOpen(false)}
+                      className="px-3 py-2 rounded-lg hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors"
+                    >
+                      Profile
+                    </Link>
+                  </>
                 )}
                 {user.role === "student" && (
                   <>

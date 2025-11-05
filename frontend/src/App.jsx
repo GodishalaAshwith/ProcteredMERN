@@ -19,6 +19,7 @@ import FacultySubmissions from "./pages/FacultySubmissions";
 import StudentExams from "./pages/StudentExams";
 import ExamRunner from "./pages/ExamRunner";
 import StudentProfile from "./pages/StudentProfile";
+import FacultyProfile from "./pages/FacultyProfile";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import PropTypes from "prop-types";
@@ -99,6 +100,16 @@ function AppShell() {
               <PrivateRoute>
                 <RoleRoute allow={["faculty"]}>
                   <FacultyExams />
+                </RoleRoute>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/faculty/profile"
+            element={
+              <PrivateRoute>
+                <RoleRoute allow={["faculty"]}>
+                  <FacultyProfile />
                 </RoleRoute>
               </PrivateRoute>
             }
