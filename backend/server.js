@@ -6,6 +6,7 @@ const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
 const examRoutes = require("./routes/exams");
 const attemptRoutes = require("./routes/attempts");
+const { scheduleDailyRunner } = require("./scheduler/promotion");
 
 dotenv.config(); // Load environment variables
 
@@ -32,6 +33,9 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/exams", examRoutes);
 app.use("/api/attempts", attemptRoutes);
+
+// Schedule academic promotion cycles (semester/year)
+scheduleDailyRunner();
 
 // Health check
 app.get("/health", (req, res) => {

@@ -12,10 +12,14 @@ const StudentSchema = new mongoose.Schema(
 
     // Academic profile
     college: { type: String },
-    year: { type: Number, min: 1, max: 8 },
+    year: { type: Number, min: 1, max: 4 },
     department: { type: String },
     section: { type: Number, min: 1, max: 5 },
-    semester: { type: Number, min: 1, max: 16 },
+    semester: { type: Number, min: 1, max: 8 },
+    // Promotion cycle guards to avoid double increments within same cycle
+    // Format: 'YYYY-01' for January cycle, 'YYYY-07' for July cycle
+    lastSemCycle: { type: String },
+    lastYearCycle: { type: String },
   },
   { timestamps: true }
 );

@@ -226,8 +226,8 @@ router.put("/profile", authMiddleware, async (req, res) => {
     }
 
     // basic validation bounds per schema
-    if (user.year != null && (user.year < 1 || user.year > 8)) {
-      return res.status(400).json({ message: "Year must be between 1 and 8" });
+    if (user.year != null && (user.year < 1 || user.year > 4)) {
+      return res.status(400).json({ message: "Year must be between 1 and 4" });
     }
     if (user.section != null && (user.section < 1 || user.section > 5)) {
       return res

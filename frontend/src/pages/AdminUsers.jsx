@@ -293,7 +293,7 @@ const AdminUsers = () => {
             {isStudent && (
               <input
                 className="border rounded px-3 py-2"
-                placeholder="Year (1-8)"
+                placeholder="Year (1-4)"
                 type="number"
                 min={1}
                 max={8}
@@ -306,7 +306,7 @@ const AdminUsers = () => {
             {isStudent && (
               <input
                 className="border rounded px-3 py-2"
-                placeholder="Semester (1-16)"
+                placeholder="Semester (1-8)"
                 type="number"
                 min={1}
                 max={16}

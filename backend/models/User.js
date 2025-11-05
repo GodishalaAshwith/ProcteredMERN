@@ -19,11 +19,11 @@ const UserSchema = new mongoose.Schema(
 
     // Student profile fields (optional for non-students)
     college: { type: String },
-    year: { type: Number, min: 1, max: 8 },
+    year: { type: Number, min: 1, max: 4 },
     department: { type: String },
     section: { type: Number, min: 1, max: 5 },
     // Optional explicit semester (1..14 etc.). If set, year may be derived as ceil(semester/2)
-    semester: { type: Number, min: 1, max: 16 },
+    semester: { type: Number, min: 1, max: 8 },
   },
   { timestamps: true }
 );

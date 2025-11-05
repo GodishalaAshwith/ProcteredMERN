@@ -315,7 +315,7 @@ router.post(
         const section = sectionRaw ? Number(sectionRaw) : undefined;
         const semester = semRaw ? Number(semRaw) : undefined;
         const year = semester
-          ? Math.max(1, Math.min(8, Math.ceil(semester / 2)))
+          ? Math.max(1, Math.min(4, Math.ceil(semester / 2)))
           : undefined;
 
         // Skip if roster already has this student by rollno
