@@ -350,6 +350,20 @@ const ExamEditor = () => {
 
   const fromLocalToISO = (val) => (val ? new Date(val).toISOString() : "");
 
+  // Helpers to set default scheduling based on duration
+  const nowLocal = () => {
+    const d = new Date();
+    d.setSeconds(0, 0);
+    return toLocalDateTime(d.toISOString());
+  };
+
+  const addMinsLocal = (dtLocalStr, mins) => {
+    const d = dtLocalStr ? new Date(dtLocalStr) : new Date();
+    d.setSeconds(0, 0);
+    d.setMinutes(d.getMinutes() + Number(mins || 0));
+    return toLocalDateTime(d.toISOString());
+  };
+
   const updateQuestion = (idx, patch) => {
     setForm((f) => {
       const qs = [...f.questions];
@@ -480,6 +494,28 @@ const ExamEditor = () => {
       setSaving(false);
     }
   };
+
+  // Initialize default window on create (not edit)
+  useEffect(() => {
+    if (isEdit) return;
+    setForm((f) => {
+      // Only set if empty to avoid overriding user input
+      const start = f.windowStart || nowLocal();
+      const end = f.windowEnd || addMinsLocal(start, f.durationMins || 60);
+      return { ...f, windowStart: start, windowEnd: end };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit]);
+
+  // When duration changes, if start is empty, set to now; always recompute end from start
+  useEffect(() => {
+    setForm((f) => {
+      const start = f.windowStart || nowLocal();
+      const end = addMinsLocal(start, f.durationMins || 60);
+      return { ...f, windowStart: start, windowEnd: end };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.durationMins]);
 
   // Import parsing helpers inside component scope
   const runParse = (raw, mode, delimiter) => {
@@ -625,9 +661,10 @@ Points: 5`;
                 min="1"
                 className="w-full px-3 py-2 rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
                 value={form.durationMins}
-                onChange={(e) =>
-                  setForm({ ...form, durationMins: e.target.value })
-                }
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setForm((f) => ({ ...f, durationMins: v }));
+                }}
                 required
               />
               <p className="help mt-1 text-xs text-slate-500">
@@ -671,7 +708,15 @@ Points: 5`;
                 className="w-full px-3 py-2 rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
                 value={form.windowStart}
                 onChange={(e) =>
-                  setForm({ ...form, windowStart: e.target.value })
+                  setForm((f) => ({
+                    ...f,
+                    windowStart: e.target.value,
+                    // Keep end in sync with new start and current duration
+                    windowEnd: addMinsLocal(
+                      e.target.value,
+                      f.durationMins || 60
+                    ),
+                  }))
                 }
                 required
               />

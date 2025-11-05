@@ -22,6 +22,7 @@ const Dashboard = () => {
     nextWindow: null,
   });
   const [studentActive, setStudentActive] = useState([]);
+  const [studentUpcoming, setStudentUpcoming] = useState([]);
   const [facultyStats, setFacultyStats] = useState({
     exams: 0,
     inProgress: 0,
@@ -34,6 +35,7 @@ const Dashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [nowTs, setNowTs] = useState(Date.now());
 
   useEffect(() => {
     AOS.init({ duration: 1000, once: false, mirror: true });
@@ -48,6 +50,12 @@ const Dashboard = () => {
     fetchRoleData(u).finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
+
+  // ticking clock for countdowns
+  useEffect(() => {
+    const id = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const fetchRoleData = async (u) => {
     try {
@@ -66,7 +74,28 @@ const Dashboard = () => {
             .map((d) => new Date(d))
             .sort((a, b) => a - b)[0] || null;
         setStudentStats({ available, inProgress, submitted, nextWindow });
-        setStudentActive(data);
+        // Show only currently running exams in the "Current exam" section
+        const now = new Date();
+        const running = (data || [])
+          .filter((e) => {
+            const s = e?.window?.start ? new Date(e.window.start) : null;
+            const ed = e?.window?.end ? new Date(e.window.end) : null;
+            return s && ed && s <= now && now <= ed;
+          })
+          .sort((a, b) => new Date(a.window.end) - new Date(b.window.end));
+        setStudentActive(running);
+        // Upcoming (scheduled) exams
+        const upcoming = (data || [])
+          .filter((e) => {
+            const s = e?.window?.start ? new Date(e.window.start) : null;
+            return s && now < s;
+          })
+          .sort(
+            (a, b) =>
+              new Date(a.window.start).getTime() -
+              new Date(b.window.start).getTime()
+          );
+        setStudentUpcoming(upcoming);
       } else if (u.role === "faculty") {
         const { data: exams } = await listMyExams();
         const examsCount = exams.length;
@@ -170,6 +199,31 @@ const Dashboard = () => {
                     </p>
                   ) : (
                     <StudentCurrentExam exam={studentActive[0]} />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {user?.role === "student" && (
+              <div className="mt-6" data-aos="fade-up">
+                <div className="bg-white p-6 rounded-xl shadow border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xl font-semibold text-slate-800">
+                      Upcoming exams
+                    </h3>
+                  </div>
+                  {studentUpcoming.length === 0 ? (
+                    <p className="text-slate-600 mt-1">No upcoming exams.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                      {studentUpcoming.map((ex) => (
+                        <UpcomingExamCard
+                          key={ex._id}
+                          exam={ex}
+                          nowTs={nowTs}
+                        />
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
@@ -352,12 +406,47 @@ StatCard.propTypes = {
 
 function StudentCurrentExam({ exam }) {
   const navigate = useNavigate();
+  const [opensIn, setOpensIn] = useState("");
+  const s = exam?.window?.start ? new Date(exam.window.start) : null;
+  const ed = exam?.window?.end ? new Date(exam.window.end) : null;
+  const now = new Date();
+  const beforeStart = s && now < s;
+  const afterEnd = ed && now > ed;
+  const withinWindow = s && ed && now >= s && now <= ed;
+
+  useEffect(() => {
+    if (!beforeStart || !s) {
+      setOpensIn("");
+      return;
+    }
+    const fmt = (ms) => {
+      if (ms <= 0) return "starting…";
+      const totalSec = Math.floor(ms / 1000);
+      const hh = Math.floor(totalSec / 3600)
+        .toString()
+        .padStart(2, "0");
+      const mm = Math.floor((totalSec % 3600) / 60)
+        .toString()
+        .padStart(2, "0");
+      const ss = Math.floor(totalSec % 60)
+        .toString()
+        .padStart(2, "0");
+      return `${hh}:${mm}:${ss}`;
+    };
+    const tick = () => setOpensIn(fmt(s - new Date()));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [beforeStart, s]);
+
   const btn = () => {
-    if (exam.status === "in-progress") return "Resume";
     if (exam.status === "submitted") return "Submitted";
+    if (beforeStart) return "Scheduled";
+    if (afterEnd) return "Closed";
+    if (exam.status === "in-progress") return "Resume";
     return "Start";
   };
-  const disabled = exam.status === "submitted";
+  const disabled = exam.status === "submitted" || beforeStart || afterEnd;
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-2">
       <div>
@@ -369,6 +458,9 @@ function StudentCurrentExam({ exam }) {
         <p className="text-slate-600 text-sm">
           Duration: {exam.durationMins} mins
         </p>
+        {beforeStart && (
+          <p className="text-slate-600 text-sm">Opens in {opensIn}</p>
+        )}
       </div>
       <button
         className={`px-3 py-2 rounded font-semibold transition-colors ${
@@ -376,7 +468,9 @@ function StudentCurrentExam({ exam }) {
             ? "bg-slate-200 text-slate-500 cursor-not-allowed"
             : "bg-emerald-600 text-slate-900 hover:bg-emerald-500"
         }`}
-        onClick={() => navigate(`/attempt/${exam._id}`)}
+        onClick={() => {
+          if (!disabled) navigate(`/attempt/${exam._id}`);
+        }}
         disabled={disabled}
         title={disabled ? "Already submitted" : "Open exam"}
       >
@@ -397,4 +491,83 @@ StudentCurrentExam.propTypes = {
       end: PropTypes.string.isRequired,
     }).isRequired,
   }).isRequired,
+};
+
+function UpcomingExamCard({ exam, nowTs }) {
+  const navigate = useNavigate();
+  const start = exam?.window?.start ? new Date(exam.window.start) : null;
+  const startsInMs = start ? start.getTime() - nowTs : null;
+
+  const formatDuration = (ms) => {
+    if (ms == null) return "";
+    if (ms <= 0) return "0s";
+    const total = Math.floor(ms / 1000);
+    const d = Math.floor(total / 86400);
+    const h = Math.floor((total % 86400) / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    const parts = [];
+    if (d) parts.push(`${d}d`);
+    if (h || d) parts.push(`${h}h`);
+    if (m || h || d) parts.push(`${m}m`);
+    parts.push(`${s}s`);
+    return parts.join(" ");
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow border border-slate-200 p-4 space-y-2">
+      <div className="flex items-start justify-between">
+        <h4 className="text-lg font-semibold text-slate-800">{exam.title}</h4>
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800">
+            Upcoming
+          </span>
+          {typeof startsInMs === "number" && (
+            <span className="text-[11px] text-blue-700">
+              Starts in {formatDuration(startsInMs)}
+            </span>
+          )}
+        </div>
+      </div>
+      {exam.description && (
+        <p className="text-sm text-slate-600">{exam.description}</p>
+      )}
+      <div className="text-sm text-slate-700">
+        <div>Duration: {exam.durationMins} mins</div>
+        <div>
+          Window:{" "}
+          {exam.window?.start
+            ? new Date(exam.window.start).toLocaleString()
+            : "-"}
+          &rarr;{" "}
+          {exam.window?.end ? new Date(exam.window.end).toLocaleString() : "-"}
+        </div>
+      </div>
+      <div className="pt-1">
+        <button
+          className="bg-emerald-600 text-slate-900 font-semibold px-3 py-1 rounded hover:bg-emerald-500 transition-colors disabled:bg-gray-200 disabled:text-gray-500"
+          onClick={() => navigate(`/attempt/${exam._id}`)}
+          disabled
+          title="Exam hasn't started yet"
+        >
+          Starts soon
+        </button>
+      </div>
+    </div>
+  );
+}
+
+UpcomingExamCard.propTypes = {
+  exam: PropTypes.shape({
+    _id: PropTypes.string.isRequired,
+    title: PropTypes.string.isRequired,
+    durationMins: PropTypes.number.isRequired,
+    status: PropTypes.string,
+    description: PropTypes.string,
+    window: PropTypes.shape({
+      start: PropTypes.string,
+      end: PropTypes.string,
+    }).isRequired,
+  }).isRequired,
+  nowTs: PropTypes.number.isRequired,
 };
